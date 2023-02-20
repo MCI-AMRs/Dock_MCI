@@ -1,0 +1,27 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/h/ros2_ws/install/tt_cpp/include/**",
+        "/home/h/ros2_ws/install/h_interfaces/include/**",
+        "/opt/ros/galactic/include/**",
+        "/home/h/ros2_ws/src/cpp_test/include/**",
+        "/home/h/ros2_ws/src/h_interfaces/include/**",
+        "/home/h/ros2_ws/src/h_mapping/include/**",
+        "/home/h/ros2_ws/src/mci_rmf/include/**",
+        "/home/h/ros2_ws/src/tt_cpp/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
