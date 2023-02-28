@@ -45,3 +45,8 @@ https://kb.iu.edu/d/aews
 ```
 https://openlib.tugraz.at/download.php?id=5f6af343ccab6&location=browse
 ```
+
+## Cam setup path
+```
+/opt/ros/galactic/share/turtlebot4_bringup/launch/oakd.launch.py
+```

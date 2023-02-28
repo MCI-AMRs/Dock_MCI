@@ -1,6 +1,5 @@
-# Request
+bool goal
 ---
-# Result
 int32 finished
 ---
-# Feedback
+
