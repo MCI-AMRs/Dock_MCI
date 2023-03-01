@@ -4,6 +4,7 @@
 #include <thread>
 #include <sstream>
 #include <iostream>
+#include <cmath>
 
 #include <chrono> // time
 #include <opencv2/opencv.hpp> 
@@ -20,6 +21,7 @@
 #include "action_interfaces/action/dock.hpp"
 #include "irobot_create_msgs/action/drive_distance.hpp"
 #include "irobot_create_msgs/action/rotate_angle.hpp"
+#include "irobot_create_msgs/action/navigate_to_position.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
 #define DEBUG
@@ -40,6 +42,7 @@ public:
   using GoalHandleDock = rclcpp_action::ServerGoalHandle<Dock>;
   using RotateAngle = irobot_create_msgs::action::RotateAngle;
   using DriveDistance = irobot_create_msgs::action::DriveDistance;
+  using NavigateToPosition = irobot_create_msgs::action::NavigateToPosition;
 
   explicit DockActionServer(const rclcpp::NodeOptions & options = rclcpp::NodeOptions()) : Node("dock_turtle_action_server",options) // Class Constructor
   {
@@ -62,6 +65,12 @@ public:
       this,
       "drive_distance"
       );
+
+    // create navigating to position client
+    this->navigate_to_pose_ = rclcpp_action::create_client<NavigateToPosition>(
+      this,
+      "navigate_to_position"
+      );
   }
   double angle_error;
   double vertical_error;
@@ -71,6 +80,33 @@ public:
   bool turn = 1;
   double scale = 1;
 
+  struct Quaternion_z
+  {
+    double w,z;
+  };
+  
+  struct Plane_xy
+  {
+    double x,y;
+  };
+  
+  void send_position(Quaternion_z q, Plane_xy pos)
+  {
+    if (!this->navigate_to_pose_->wait_for_action_server()) {
+      RCLCPP_ERROR(this->get_logger(), "Action server not available after waiting");
+      rclcpp::shutdown();
+    }
+    auto goal_pos = NavigateToPosition::Goal();
+    goal_pos.goal_pose.pose.position.x = pos.x;
+    goal_pos.goal_pose.pose.position.y = pos.y;
+    goal_pos.goal_pose.pose.orientation.w = q.w;
+    goal_pos.goal_pose.pose.orientation.z = q.z;
+    goal_pos.max_translation_speed = 0.2;
+    goal_pos.max_rotation_speed = 0.1;
+
+    RCLCPP_ERROR(this->get_logger(), "Sending position action to Robot!");
+    this->navigate_to_pose_->async_send_goal(goal_pos);
+  }
 
   void send_goal(std::string angle_or_dist ,double speed, double rad_or_m )
     {
@@ -129,9 +165,7 @@ public:
       cv::aruco::drawAxis(img->image, cameraMatrix, distCoeffs, rvecs, tvecs, 0.1);
       angle_error = abs(rvecs.at(0)[2]);
       horizontal_error = abs(tvecs.at(0)[0]);
-      vertical_error = tvecs.at(0)[2]+0.05-0.232; //offset of camera 
-      std::cout << "which" << std::endl;
-      std::cout << tvecs.at(0)[0] << std::endl;
+      vertical_error = tvecs.at(0)[2]+0.05-0.232; //offset of camera
       return 0;
     }
     else
@@ -175,15 +209,23 @@ public:
     }
   }
 
+  Quaternion_z euler_to_quaternion(double angle_z)
+  {
+    Quaternion_z q;
+    q.w = cos(angle_z*0.5);
+    q.z = sin(angle_z*0.5);
+    return q;
+  }
+
 private:
   rclcpp_action::Server<Dock>::SharedPtr action_server_;
   rclcpp_action::Client<RotateAngle>::SharedPtr rotate_angle_;
   rclcpp_action::Client<DriveDistance>::SharedPtr drive_distance_;
+  rclcpp_action::Client<NavigateToPosition>::SharedPtr navigate_to_pose_;
   cv_bridge::CvImagePtr cv_ptr_;
   bool image_received_ = false;
   double angle_threshold = 0.08; // ^= 5°
-  double slow_down_threshold = 0.2;
-  double horizontal_threshold = 0.05;
+  double horizontal_threshold = 0.005; // 5 mm
 
   rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID & uuid,std::shared_ptr<const Dock::Goal> goal)
   {
@@ -211,12 +253,11 @@ private:
 
 void execute(const std::shared_ptr<GoalHandleDock> goal_handle)
   {
-    bool goal_not_reached = true;
+    bool goal_reached = false;
     auto result = std::make_shared<Dock::Result>();
     int marker = -1;
-    double vel = 0.1;
 
-      while (goal_not_reached){
+      while (!goal_reached){ // as long as goal not reached
         if(gotImage){
           try
           { 
@@ -234,61 +275,34 @@ void execute(const std::shared_ptr<GoalHandleDock> goal_handle)
             std::cout << "Translation error: " << vertical_error << " m" << std::endl;
             // Update GUI Window
             cv::imshow("image_stream", cv_ptr_->image);
-            cv::waitKey(1); 
+            cv::waitKey(1);
+            #ifdef NOROB
             if(marker == 0){
-                if(vertical_error < slow_down_threshold)
-                vel = 0.05;
-                else
-                vertical_error = vertical_error/2;
-                
-                std::cout << "Vel: " << vel << std::endl;
-
-                if (angle_error > angle_threshold || horizontal_error > horizontal_threshold)
-                {
-                  // Drive near
-                  double phi;
-                  double back;
-                  if (angle_error > 0)
-                  {
-                    phi = -((PI*0.5)-angle_error);
-                    back = PI*0.5;
-                  }
-                  else
-                  {
-                    phi = (PI*0.5)-abs(angle_error);
-                    back = -PI*0.5;
-                  }
-                  #ifdef NOROB
-                    send_goal("angle",vel,phi);
-                    send_goal("dist",vel,horizontal_error);
-                    send_goal("angle",vel,back);
-                    send_goal("dist",vel,vertical_error);
-                  #endif
-                  #ifdef DEBUG
-                    std::cout << "Drive near and angle correction!" << std::endl;
-                    std::cout << "Turn angle: " << phi*180/PI << std::endl;
-                    std::cout << "Turn back angle: " << back*180/PI << std::endl;
-                  #endif
-                }
-                else
-                {
-                  #ifdef NOROB
-                    send_goal("dist",vel,vertical_error);
-                  #endif
-                  #ifdef DEBUG
-                    std::cout << "Drive straight!" << std::endl;
-                  #endif
-                  goal_not_reached = false;
-                }
-
+               if(angle_error > angle_threshold || horizontal_error > horizontal_threshold)
+               {
+                // Drive 20 cm infront of ArUco Tag
+                Plane_xy pos;
+                pos.y = vertical_error - 0.2;
+                pos.x = horizontal_error;
+                Quaternion_z q;
+                q = euler_to_quaternion(angle_error);
+                send_position(q,pos); // Drive to the pose!
+                RCLCPP_INFO(this->get_logger(), "Driving infront of the Dock!");
+               }
+               else
+               {
+                // Drive towards dock with reduced vel
+                send_goal("dist",0.1,vertical_error);
+                RCLCPP_INFO(this->get_logger(), "Docking the BOT!");
+                goal_reached = true;
+               }
             }
             else
             {
               // turn around to find the AR Tag
-              #ifdef NOROB
               search_for_tag();
-              #endif
             }
+            #endif
         gotImage = false; // wait for new image
         }  
         else
