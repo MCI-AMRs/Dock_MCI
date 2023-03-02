@@ -20,10 +20,14 @@ find_package(OpenCV 4 REQUIRED)
 find_package(irobot_create_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(depthai REQUIRED)
+find_package(libnop REQUIRED)
 
 add_executable(dock_action_server src/dock_action.cpp)
+ament_target_dependencies(dock_action_server rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV libnop)
 
-ament_target_dependencies(dock_action_server rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge OpenCV)
+add_executable(test_publisher src/test_publisher.cpp)
+ament_target_dependencies(test_publisher rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV libnop)
 
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 target_link_libraries(dock_action_server ${OpenCV_LIBS} )
@@ -42,6 +46,6 @@ endif()
 
 install(TARGETS
   dock_action_server
+  test_publisher
   DESTINATION lib/${PROJECT_NAME})
-
 ament_package()
