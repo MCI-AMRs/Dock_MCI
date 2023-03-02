@@ -50,3 +50,8 @@ https://openlib.tugraz.at/download.php?id=5f6af343ccab6&location=browse
 ```
 /opt/ros/galactic/share/turtlebot4_bringup/launch/oakd.launch.py
 ```
+
+# Cam depthai installation
+```
+sudo wget -qO- https://raw.githubusercontent.com/luxonis/depthai-ros/main/install_dependencies.sh | sudo bash
+```
