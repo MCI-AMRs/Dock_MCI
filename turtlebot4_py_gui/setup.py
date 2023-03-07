@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'client = turtlebot4_py_gui.turtlebot4_py_gui_node:main',
-            'service = turtlebot4_py_gui.srv_test:main'
+            'service = turtlebot4_py_gui.srv_test:main',
+            'demo = turtlebot4_py_gui.demo_node:main'
         ],
     },
 )

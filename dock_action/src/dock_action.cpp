@@ -1,4 +1,3 @@
-// from tutorial
 #include <functional>
 #include <memory>
 #include <thread>
@@ -142,8 +141,11 @@ public:
   }
 
   int pose_estimation(cv_bridge::CvImagePtr img){
-    float mtx[9] = {1586.84790, 0.0, 664.805767,0.0, 1583.30397, 421.826172,0.0, 0.0, 1.0};
-    float dist[5] = {0.17910684, -0.81931715, 0.0033601, 0.00745101, 1.44824592};
+    //float mtx[9] = {1586.84790, 0.0, 664.805767,0.0, 1583.30397, 421.826172,0.0, 0.0, 1.0};
+    //float dist[5] = {0.17910684, -0.81931715, 0.0033601, 0.00745101, 1.44824592};
+
+    float mtx[9] = {1546.14811,0.0,547.135385,0.0,1545.10239,399.614371,0.0,0.0,1.0};
+    float dist[5] = {0.149987357,-0.681876074,0.000866810576,-0.000552686996,0.934266444};
 
     cv::Mat cameraMatrix = cv::Mat(3, 3, CV_32F, mtx);
     cv::Mat distCoeffs = cv::Mat(1, 5, CV_32F, dist);
@@ -163,6 +165,15 @@ public:
       cv::aruco::estimatePoseSingleMarkers(corners,markerLength,cameraMatrix,distCoeffs,rvecs,tvecs);
       // Draw axis for marker
       cv::aruco::drawAxis(img->image, cameraMatrix, distCoeffs, rvecs, tvecs, 0.1);
+      std::cout << "Translation vector: " << std::endl;
+      for(int i=0;i<3;i++)
+        std::cout << tvecs.at(0)[i] << std::endl;
+
+      std::cout << "Rotation vector: " << std::endl;
+      for(int i=0;i<3;i++)
+        std::cout << rvecs.at(0)[i]*180/PI << "°" << std::endl;
+
+      
       angle_error = abs(rvecs.at(0)[2]);
       horizontal_error = abs(tvecs.at(0)[0]);
       vertical_error = tvecs.at(0)[2]+0.05-0.232; //offset of camera
@@ -276,33 +287,39 @@ void execute(const std::shared_ptr<GoalHandleDock> goal_handle)
             // Update GUI Window
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
-            #ifdef NOROB
             if(marker == 0){
                if(angle_error > angle_threshold || horizontal_error > horizontal_threshold)
                {
                 // Drive 20 cm infront of ArUco Tag
+                #ifdef NOROB
                 Plane_xy pos;
                 pos.y = vertical_error - 0.2;
                 pos.x = horizontal_error;
                 Quaternion_z q;
                 q = euler_to_quaternion(angle_error);
                 send_position(q,pos); // Drive to the pose!
+                #endif
                 RCLCPP_INFO(this->get_logger(), "Driving infront of the Dock!");
+                
                }
                else
                {
                 // Drive towards dock with reduced vel
+                #ifdef NOROB
                 send_goal("dist",0.1,vertical_error);
+                #endif 
                 RCLCPP_INFO(this->get_logger(), "Docking the BOT!");
                 goal_reached = true;
                }
+               
             }
             else
             {
               // turn around to find the AR Tag
+              #ifdef NOROB
               search_for_tag();
+              #endif
             }
-            #endif
         gotImage = false; // wait for new image
         }  
         else
@@ -335,8 +352,10 @@ class ImageSubscriber : public rclcpp::Node
   private:
     void image_callback(const Image::SharedPtr msg)const
     {
-      image_global = msg;
-      gotImage = true;
+      if(!gotImage){
+        image_global = msg;
+        gotImage = true;
+      }
       std::cout << "now" << std::endl;
     }
     rclcpp::Subscription<Image>::SharedPtr image_subscriber_;

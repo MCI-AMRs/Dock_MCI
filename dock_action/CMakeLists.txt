@@ -21,13 +21,13 @@ find_package(irobot_create_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(depthai REQUIRED)
-find_package(libnop REQUIRED)
+
 
 add_executable(dock_action_server src/dock_action.cpp)
-ament_target_dependencies(dock_action_server rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV libnop)
+ament_target_dependencies(dock_action_server rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV)
 
 add_executable(test_publisher src/test_publisher.cpp)
-ament_target_dependencies(test_publisher rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV libnop)
+ament_target_dependencies(test_publisher rclcpp rclcpp_action action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV)
 
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 target_link_libraries(dock_action_server ${OpenCV_LIBS} )

@@ -1,4 +1,10 @@
-#include <cstdio>
+#include <iostream>
+
+int main(){
+    std::cout << "" << std::endl;
+}
+
+/*#include <cstdio>
 #include <iostream>
 
 #include "rclcpp/rclcpp.hpp"
@@ -59,4 +65,4 @@ int main(int argc, char** argv) {
     rgbPublish.addPublisherCallback();
     rclcpp::spin(node);
     return 0;
-}
+}*/

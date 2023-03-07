@@ -87,6 +87,7 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "executor": "cpp",
-        "netfwd": "cpp"
+        "netfwd": "cpp",
+        "*.ipp": "cpp"
     }
 }
