@@ -24,8 +24,10 @@
 #include "sensor_msgs/msg/image.hpp"
 
 #define DEBUG
-// #define NOROB // uncomment do not use the move commands
+#define NOROB // uncomment to not use the move commands
 #define PI 3.1415
+#define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
+#define MARKER_LENGTH 0.092
 
 using namespace std::placeholders;
 // irobot_create_msgs::action:DriveDistance;
@@ -78,35 +80,8 @@ public:
   int count = 1;
   bool turn = 1;
   double scale = 1;
-
-  struct Quaternion_z
-  {
-    double w,z;
-  };
+  bool isNavigating;
   
-  struct Plane_xy
-  {
-    double x,y;
-  };
-  
-  void send_position(Quaternion_z q, Plane_xy pos)
-  {
-    if (!this->navigate_to_pose_->wait_for_action_server()) {
-      RCLCPP_ERROR(this->get_logger(), "Action server not available after waiting");
-      rclcpp::shutdown();
-    }
-    auto goal_pos = NavigateToPosition::Goal();
-    goal_pos.goal_pose.pose.position.x = pos.x;
-    goal_pos.goal_pose.pose.position.y = pos.y;
-    goal_pos.goal_pose.pose.orientation.w = q.w;
-    goal_pos.goal_pose.pose.orientation.z = q.z;
-    goal_pos.max_translation_speed = 0.2;
-    goal_pos.max_rotation_speed = 0.1;
-
-    RCLCPP_ERROR(this->get_logger(), "Sending position action to Robot!");
-    this->navigate_to_pose_->async_send_goal(goal_pos);
-  }
-
   void send_goal(std::string angle_or_dist ,double speed, double rad_or_m )
     {
     if (angle_or_dist == "angle")
@@ -120,8 +95,24 @@ public:
       goal_msg.max_rotation_speed = speed;
       goal_msg.angle = rad_or_m;
 
-      RCLCPP_INFO(this->get_logger(), "Sending goal");
-      this->rotate_angle_->async_send_goal(goal_msg);
+      isNavigating = true;
+      // set callbacks
+      auto send_goal_options = rclcpp_action::Client<RotateAngle>::SendGoalOptions();
+      send_goal_options.goal_response_callback = std::bind(&DockActionServer::callback_turn_goal_response, this, std::placeholders::_1);
+      send_goal_options.result_callback = std::bind(&DockActionServer::callback_turn_result, this, std::placeholders::_1);
+
+      // send goal
+      auto future = rotate_angle_->async_send_goal(goal_msg, send_goal_options);
+      
+      // wait for future to complete
+      size_t counter = 0;
+      while(isNavigating)
+      {
+          if((counter % 25) == 0)
+          RCLCPP_INFO(get_logger(), "[nav2] navigating...");
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          counter++;
+      }
      }
     else if (angle_or_dist == "dist")
     {
@@ -133,50 +124,159 @@ public:
       auto goal_msg = DriveDistance::Goal();
       goal_msg.max_translation_speed = speed;
       goal_msg.distance = rad_or_m;
+      isNavigating = true;
+      // set callbacks
+      auto send_goal_options = rclcpp_action::Client<DriveDistance>::SendGoalOptions();
+      send_goal_options.goal_response_callback = std::bind(&DockActionServer::callback_drivedist_goal_response, this, std::placeholders::_1);
+      send_goal_options.result_callback = std::bind(&DockActionServer::callback_drivedist_result, this, std::placeholders::_1);
 
-      RCLCPP_INFO(this->get_logger(), "Sending goal");
-      this->drive_distance_->async_send_goal(goal_msg);
+      // send goal
+      auto future = drive_distance_->async_send_goal(goal_msg, send_goal_options);
+      
+      // wait for future to complete
+      size_t counter = 0;
+      while(isNavigating)
+      {
+          if((counter % 25) == 0)
+          RCLCPP_INFO(get_logger(), "[nav2] navigating...");
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          counter++;
+      }
     }
-
   }
 
-  int pose_estimation(cv_bridge::CvImagePtr img){
-    //float mtx[9] = {1586.84790, 0.0, 664.805767,0.0, 1583.30397, 421.826172,0.0, 0.0, 1.0};
-    //float dist[5] = {0.17910684, -0.81931715, 0.0033601, 0.00745101, 1.44824592};
+  cv::Vec3f rotationMatrixToEulerAngles(cv::Mat &R)
+  { // https://learnopencv.com/rotation-matrix-to-euler-angles/
+      float sy = sqrt(R.at<double>(0,0) * R.at<double>(0,0) +  R.at<double>(1,0) * R.at<double>(1,0) );
+  
+      bool singular = sy < 1e-6; // If
+  
+      float x, y, z;
+      if (!singular)
+      {
+          x = atan2(R.at<double>(2,1) , R.at<double>(2,2));
+          y = atan2(-R.at<double>(2,0), sy);
+          z = atan2(R.at<double>(1,0), R.at<double>(0,0));
+      }
+      else
+      {
+          x = atan2(-R.at<double>(1,2), R.at<double>(1,1));
+          y = atan2(-R.at<double>(2,0), sy);
+          z = 0;
+      }
+      return cv::Vec3f(x, y, z);
+  }
 
-    float mtx[9] = {1546.14811,0.0,547.135385,0.0,1545.10239,399.614371,0.0,0.0,1.0};
-    float dist[5] = {0.149987357,-0.681876074,0.000866810576,-0.000552686996,0.934266444};
+  cv::Vec3f rotMat2eulerYXZ(cv::Mat &R)
+  {
+    cv::Vec3f rot;
+    // from https://www.geometrictools.com/Documentation/EulerAngles.pdf page 7
+    if(R.at<float>(1,2) < 1) //r12
+    {
+      if(R.at<float>(1,2) > -1)
+      {
+        rot[0] = asin(-R.at<float>(1,2));
+        rot[1] = atan2(R.at<float>(0,2),R.at<float>(2,2));
+        rot[2] = atan2(R.at<float>(1,0),R.at<float>(1,1));
+        return rot;
+      }
+      else // r 1 2 = −1
+      {
+      // Not a u n i q u e s o l u t i o n : t h e t a Z − t h e t a Y = a t a n 2 (−r01 , r 0 0 )
+      rot[0] = PI*0.5;
+      rot[1] = -atan2(-R.at<float>(0,1),R.at<float>(0,0)) ;
+      rot[2] = 0 ;
+      return rot;
+      }
+  }
+    else // r 1 2 = +1
+    {
+    // Not a u n i q u e s o l u t i o n : t h e t a Z + t h e t a Y = a t a n 2 (−r01 , r 0 0 )
+    rot[0] = -PI * 0.2;
+    rot[1] = atan2(-R.at<float>(0,1),R.at<float>(0,0));
+    rot[2] = 0;
+    return rot;
+    }
+  }
+
+  int pose_estimation(cv_bridge::CvImagePtr img){  
+    // Cam from Fake Turtlebot
+    // float mtx[9] = {1024.147705078125, 0.0, 647.973876953125,0.0, 1024.147705078125, 363.7773132324219,0.0, 0.0, 1.0};
+    // float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // Cam from Robot3
+    float mtx[9] = {1028.708740234375, 0.0, 641.5645751953125, 0.0, 1028.708740234375, 362.7433776855469, 0.0, 0.0, 1.0};
+    float dist[14] = {10.559211730957031, -81.07833862304688, -0.00018250872381031513, -0.00033414774225093424, 299.4360656738281, 10.359108924865723, -80.04523468017578, 294.8573913574219, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // Cam from Robot1
+    // float mtx[9] = {1025.4049072265625, 0.0, 643.5555419921875, 0.0, 1025.4049072265625, 371.5435791015625, 0.0, 0.0, 1.0};
+    // float dist[14] = {18.74028778076172, -179.54446411132812, 0.002264645416289568, 0.0020573034416884184, 681.7216186523438, 18.51045799255371, -177.75823974609375, 673.6657104492188, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     cv::Mat cameraMatrix = cv::Mat(3, 3, CV_32F, mtx);
-    cv::Mat distCoeffs = cv::Mat(1, 5, CV_32F, dist);
+    cv::Mat distCoeffs = cv::Mat(1, 14, CV_32F, dist);
+    //cv::Mat distCoeffs = cv::Mat(1, 5, CV_32F, dist);
     cv::Mat imageCopy;
     img->image.copyTo(img->image);
-    float markerLength = 0.1;
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_100);
+
+    // cv::Mat objPoints(4, 1, CV_32FC3);
+    // objPoints.ptr<cv::Vec3f>(0)[0] = cv::Vec3f(-MARKER_LENGTH/2.f, MARKER_LENGTH/2.f, 0);
+    // objPoints.ptr<cv::Vec3f>(0)[1] = cv::Vec3f(MARKER_LENGTH/2.f, MARKER_LENGTH/2.f, 0);
+    // objPoints.ptr<cv::Vec3f>(0)[2] = cv::Vec3f(MARKER_LENGTH/2.f, -MARKER_LENGTH/2.f, 0);
+    // objPoints.ptr<cv::Vec3f>(0)[3] = cv::Vec3f(-MARKER_LENGTH/2.f, -MARKER_LENGTH/2.f, 0);
 
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
-    cv::aruco::detectMarkers(img->image,dictionary,corners,ids);
+    cv::Ptr<cv::aruco::DetectorParameters> params = cv::aruco::DetectorParameters::create();
+    params->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+
+    cv::aruco::detectMarkers(img->image,dictionary,corners,ids,params);
+
     // If at least one marker detected
     if (ids.size() > 0) {
       cv::aruco::drawDetectedMarkers(img->image, corners, ids);
       // Calculate pose for marker
       std::vector<cv::Vec3d> rvecs, tvecs;
-      cv::aruco::estimatePoseSingleMarkers(corners,markerLength,cameraMatrix,distCoeffs,rvecs,tvecs);
+      cv::aruco::estimatePoseSingleMarkers(corners,MARKER_LENGTH,cameraMatrix,distCoeffs,rvecs,tvecs);
+
       // Draw axis for marker
       cv::aruco::drawAxis(img->image, cameraMatrix, distCoeffs, rvecs, tvecs, 0.1);
-      std::cout << "Translation vector: " << std::endl;
-      for(int i=0;i<3;i++)
-        std::cout << tvecs.at(0)[i] << std::endl;
 
-      std::cout << "Rotation vector: " << std::endl;
-      for(int i=0;i<3;i++)
-        std::cout << rvecs.at(0)[i]*180/PI << "°" << std::endl;
+      // Done with PnP
+      //  int nMarkers = corners.size();
+      //  std::vector<cv::Vec3d> rvecs(nMarkers), tvecs(nMarkers);
+              // Calculate pose for each marker
+      //  for (int i = 0; i < nMarkers; i++) {
+      //      solvePnP(objPoints, corners.at(i), cameraMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+      //  }
+        // Draw axis for each marker
+      //  for(unsigned int i = 0; i < ids.size(); i++) {
+      //      cv::drawFrameAxes(img->image, cameraMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1);
+      //  }
+      // finished with PnP
 
+      // new rodrigues to euler
+      cv::Mat cam_aruco_rot_mat, inv_tvec;
+      cv::Vec3f rot_vec;
+      cv::Mat tvecs_mat = (cv::Mat_<double>(3, 1) << tvecs.at(0)[0], tvecs.at(0)[1], tvecs.at(0)[2]);
+      cv::Rodrigues(rvecs, cam_aruco_rot_mat); // convert rotation vector to rotation matrix
+      std::cout << cam_aruco_rot_mat << std::endl;
       
-      angle_error = abs(rvecs.at(0)[2]);
-      horizontal_error = abs(tvecs.at(0)[0]);
-      vertical_error = tvecs.at(0)[2]+0.05-0.232; //offset of camera
+      rot_vec = rotationMatrixToEulerAngles(cam_aruco_rot_mat);
+      float rot_y = rot_vec[1];
+      inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
+
+      // std::cout << "pose estimation: " << std::endl;
+      // std::cout << "tvecs: 1: " << tvecs.at(0)[0] << "\t 2: " << tvecs.at(0)[1] << "\t 3: " << tvecs.at(0)[2] << std::endl;
+      // std::cout << "rvecs in deg: 1: " << rot_y*180/PI << std::endl; 
+
+      angle_error = rot_y;
+      std::cout << "angle error: " << angle_error * 180 / PI << "°" << std::endl;
+      // horizontal_error = tvecs.at(0)[0];
+      horizontal_error = inv_tvec.at<double>(0,0);
+      std::cout << "horizontal error: " << horizontal_error << std::endl;
+      vertical_error = tvecs.at(0)[2]-OAK_OFFS; //offset of camera
+      std::cout << "verical error: " << vertical_error << std::endl;
       return 0;
     }
     else
@@ -220,13 +320,97 @@ public:
     }
   }
 
-  Quaternion_z euler_to_quaternion(double angle_z)
+  void callback_turn_goal_response(std::shared_future<rclcpp_action::ClientGoalHandle<RotateAngle>::SharedPtr> future)
   {
-    Quaternion_z q;
-    q.w = cos(angle_z*0.5);
-    q.z = sin(angle_z*0.5);
-    return q;
+      auto goal_handle = future.get();
+      if(!goal_handle)
+      {
+          RCLCPP_INFO(get_logger(), "[nav2] Turn: goal rejected!");
+          isNavigating = false;
+      }
+      else
+      {
+          RCLCPP_INFO(get_logger(), "[nav2] Turn: goal accepted!");
+      }
   }
+
+  void callback_turn_result(const rclcpp_action::ClientGoalHandle<RotateAngle>::WrappedResult &result)
+  {
+      switch (result.code)
+      {
+          case rclcpp_action::ResultCode::SUCCEEDED:
+              RCLCPP_INFO(get_logger(), "[nav2] Turn Goal succeeded");
+              isNavigating = false;
+              break;
+          case rclcpp_action::ResultCode::ABORTED:
+              RCLCPP_ERROR(this->get_logger(), "[nav2] Turn Goal was aborted");
+              isNavigating = false;
+              return;
+          case rclcpp_action::ResultCode::CANCELED:
+              RCLCPP_ERROR(this->get_logger(), "[nav2] Turn Goal was canceled");
+              isNavigating = false;
+              return;
+          default:
+              RCLCPP_ERROR(this->get_logger(), "[nav2] Turn Unknown result code");
+              isNavigating = false;
+              return;
+      }
+  }
+
+  void callback_drivedist_goal_response(std::shared_future<rclcpp_action::ClientGoalHandle<DriveDistance>::SharedPtr> future)
+  {
+      auto goal_handle = future.get();
+      if(!goal_handle)
+      {
+          RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal rejected!");
+          isNavigating = false;
+      }
+      else
+      {
+          RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal accepted!");
+      }
+  }
+
+  void callback_drivedist_result(const rclcpp_action::ClientGoalHandle<DriveDistance>::WrappedResult &result)
+{
+    switch (result.code)
+    {
+        case rclcpp_action::ResultCode::SUCCEEDED:
+            RCLCPP_INFO(get_logger(), "[nav2] Goal succeeded");
+            isNavigating = false;
+            break;
+        case rclcpp_action::ResultCode::ABORTED:
+            RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was aborted");
+            isNavigating = false;
+            return;
+        case rclcpp_action::ResultCode::CANCELED:
+            RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was canceled");
+            isNavigating = false;
+            return;
+        default:
+            RCLCPP_ERROR(this->get_logger(), "[nav2] Unknown result code");
+            isNavigating = false;
+            return;
+    }
+}
+
+//finding mode of ungrouped data
+float mode(float arr[], int n){
+    // Sort the array 
+    std::sort(arr, arr + n);
+    int n_center = 0;
+
+    if (n % 2 == 0) // even number
+    {
+      n_center = n/2;
+      return (arr[n_center-1]+arr[n_center]) * 0.5;
+    }
+    else
+    {
+      n_center = std::floor(n*0.5);
+      return arr[n_center];
+    }
+}
 
 private:
   rclcpp_action::Server<Dock>::SharedPtr action_server_;
@@ -235,8 +419,8 @@ private:
   rclcpp_action::Client<NavigateToPosition>::SharedPtr navigate_to_pose_;
   cv_bridge::CvImagePtr cv_ptr_;
   bool image_received_ = false;
-  double angle_threshold = 0.08; // ^= 5°
-  double horizontal_threshold = 0.005; // 5 mm
+  double angle_threshold = 0.035; // ^= 2°
+  double horizontal_threshold = 0.02; // 5 mm
 
   rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID & uuid,std::shared_ptr<const Dock::Goal> goal)
   {
@@ -267,6 +451,10 @@ void execute(const std::shared_ptr<GoalHandleDock> goal_handle)
     bool goal_reached = false;
     auto result = std::make_shared<Dock::Result>();
     int marker = -1;
+    int countImage = 0;
+    float angle[10] = {0.0};
+    float verti[10] = {0.0};
+    float horiz[10] = {0.0};
 
       while (!goal_reached){ // as long as goal not reached
         if(gotImage){
@@ -280,59 +468,103 @@ void execute(const std::shared_ptr<GoalHandleDock> goal_handle)
             RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
             return;
           }
+
             // estimate the pose
             marker = pose_estimation(cv_ptr_); 
-            std::cout << "Angle error: " << angle_error*180/PI << " °" << std::endl;
-            std::cout << "Translation error: " << vertical_error << " m" << std::endl;
-            // Update GUI Window
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
-            if(marker == 0){
-               if(angle_error > angle_threshold || horizontal_error > horizontal_threshold)
-               {
-                // Drive 20 cm infront of ArUco Tag
-                #ifdef NOROB
-                Plane_xy pos;
-                pos.y = vertical_error - 0.2;
-                pos.x = horizontal_error;
-                Quaternion_z q;
-                q = euler_to_quaternion(angle_error);
-                send_position(q,pos); // Drive to the pose!
-                #endif
-                RCLCPP_INFO(this->get_logger(), "Driving infront of the Dock!");
-                
-               }
-               else
-               {
-                // Drive towards dock with reduced vel
-                #ifdef NOROB
-                send_goal("dist",0.1,vertical_error);
-                #endif 
-                RCLCPP_INFO(this->get_logger(), "Docking the BOT!");
-                goal_reached = true;
-               }
-               
-            }
-            else
+            if (marker == 0){
+              if (countImage < 10)
+              {
+                angle[countImage] = angle_error;
+                verti[countImage] = vertical_error;
+                horiz[countImage] = horizontal_error;
+                countImage++;
+              }
+              else
+              {
+              countImage = 0;
+              angle_error = mode(angle,10); // calculate modus of the used images
+              vertical_error = mode(verti,10);
+              horizontal_error = mode(horiz,10);
+
+              std::cout << "Angle error: " << angle_error*180/PI << " °" << std::endl;
+              std::cout << "Translation error: " << vertical_error << " m" << std::endl;
+              std::cout << "Horizontal error: " << horizontal_error << " m" << std::endl;
+
+                if(abs(horizontal_error) > horizontal_threshold) // reduce horizontal error
+                { 
+                  RCLCPP_INFO_STREAM(this->get_logger(),"Horizontal error correction " << horizontal_error << "...!");
+                  #ifdef NOROB
+                  // turn to reduce error
+                  std::cout << "horizontal " << horizontal_error << std::endl;
+                  int sign = std::signbit(horizontal_error) ? 1 : -1; // if horizontal error is positive turn into positive direction 
+                  //int sign = std::signbit(angle_error) ? -1 : 1; // if angle error is positive turn into positive direction 
+                  std::cout << "sign: " << sign << std::endl;
+                  send_goal("angle",0.05,(0.5 * PI - abs(angle_error)) * sign); 
+                  std::cout << "turn: " << (0.5 * PI - abs(angle_error)) * sign * 180 / PI<< "°" << std::endl;
+                  // reduce horizontal error
+                  send_goal("dist",0.05,abs(horizontal_error));
+                  std::cout << "straight: " << abs(horizontal_error) << std::endl;
+                  // turn back
+                  send_goal("angle",0.05,0.5 * PI * (-sign));
+                  std::cout << "turn back: " << 0.5 * PI * (-sign) * 180 / PI << std::endl;
+                  std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // sleep that the cam get time for a good image
+                  if(vertical_error > 0.4)
+                    send_goal("dist",0.05,0.2);
+              
+                  #endif
+                }
+                else
+                {
+                  if(abs(angle_error) > angle_threshold)
+                  {//1 
+                    RCLCPP_INFO_STREAM(this->get_logger(), "Angle correction " << angle_error*180/PI << "° ...!");                  
+                    #ifdef NOROB
+                    int sign = std::signbit(angle_error) ? -1 : 1;
+                    send_goal("angle",0.05,angle_error * -sign); // correct angle in the opposite direction
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // sleep that the cam get time for a good image
+                    #endif
+                  }
+                  else
+                  {
+                    RCLCPP_INFO_STREAM(this->get_logger(), "Docking the BOT! Driving: " << vertical_error << " m");
+                    #ifdef NOROB
+                    if(vertical_error < 0.05)
+                    {
+                      send_goal("dist",0.02,(vertical_error));
+                    }
+                    else
+                    {
+                      send_goal("dist",0.05,(vertical_error*0.9));
+                      std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // sleep that the cam get time for a good image
+                    }
+                    #endif 
+                    goal_reached = true;
+                  }
+                }
+              }
+            } // if marker == 0
+            else // find marker
             {
               // turn around to find the AR Tag
-              #ifdef NOROB
-              search_for_tag();
-              #endif
+              RCLCPP_INFO(this->get_logger(), "Turn turtle to get Aruco!");
+              // has to be implemented!
             }
         gotImage = false; // wait for new image
-        }  
-        else
+        } // if gotImage
+
+        else // wait for Imagestream
         {
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+          std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
       }
       
       // Check if goal is done
       if (rclcpp::ok()) {
+        RCLCPP_INFO(this->get_logger(), "Goal succeeded");
         result->finished = 1;
         goal_handle->succeed(result);
-        RCLCPP_INFO(this->get_logger(), "Goal succeeded");
       }
     }
 };  // class DockActionServerTestActionServer
@@ -356,13 +588,10 @@ class ImageSubscriber : public rclcpp::Node
         image_global = msg;
         gotImage = true;
       }
-      std::cout << "now" << std::endl;
+      // std::cout << "now" << std::endl;
     }
     rclcpp::Subscription<Image>::SharedPtr image_subscriber_;
 };
-
-
-
 
 
 int main(int argc, char ** argv)
