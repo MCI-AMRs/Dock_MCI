@@ -33,7 +33,7 @@ scp map.yaml ubuntu@192.168.50.185: dir/etc/
 
 ## run QR Docking action
 ```
-ros2 action send_goal /dock_turtle action_interfaces/action/Dock "{}"
+ros2 action send_goal /dock_turtle action_interfaces/action/Dock "{goal: true}"
 ```
 
 ## setup ssh publick key
@@ -44,6 +44,7 @@ https://kb.iu.edu/d/aews
 ## Links papers
 ```
 https://openlib.tugraz.at/download.php?id=5f6af343ccab6&location=browse
+https://arxiv.org/pdf/2104.12954.pdf
 ```
 
 ## Cam setup path
@@ -54,4 +55,9 @@ https://openlib.tugraz.at/download.php?id=5f6af343ccab6&location=browse
 # Cam depthai installation
 ```
 sudo wget -qO- https://raw.githubusercontent.com/luxonis/depthai-ros/main/install_dependencies.sh | sudo bash
+```
+
+# Oak-d CameraMatrix and DisCoeffs
+```
+nano /opt/ros/galactic/share/depthai_examples/params/camera/color.yaml
 ```

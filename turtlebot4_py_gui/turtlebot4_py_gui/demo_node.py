@@ -35,7 +35,7 @@ def main():
     while rclpy.ok():
         response = minimal_client.send_request(1,1,1,2,1)
         print("waiting")
-        time.sleep(1200)
+        time.sleep(2)
 
     minimal_client.destroy_node()
     rclpy.shutdown()
