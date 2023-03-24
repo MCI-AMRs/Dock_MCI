@@ -24,7 +24,7 @@
 #include "sensor_msgs/msg/image.hpp"
 
 #define DEBUG
-#define NOROB // uncomment to not use the move commands
+// #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
 #define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
 #define MARKER_LENGTH 0.092

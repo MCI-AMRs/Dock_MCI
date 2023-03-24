@@ -10,7 +10,7 @@
                 "/home/chris/ROS2_WS/install/gui_interfaces/include/**",
                 "/home/chris/ROS2_WS/install/action_interfaces/include/**",
                 "/home/chris/ROS2_WS/install/chris_interfaces/include/**",
-                "/opt/ros/galactic/include/**",
+                "/opt/ros/humble/include/**",
                 "/home/chris/ROS2_WS/src/mci_rmf/include/**",
                 "/home/chris/ROS2_WS/src/tt_cpp/include/**",
                 "/usr/include/**",
