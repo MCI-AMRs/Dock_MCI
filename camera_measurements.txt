@@ -1,0 +1,199 @@
+# Camera (upside down, horizontal offset -5cm, angle 0°)
+tvecs: 1: -0.268394      2: 0.0177976    3: 0.81234
+rvecs in deg: 1: 0.726156        2: 180.111      3: -0.710727
+pose estimation: 
+tvecs: 1: -0.26793       2: 0.0181597    3: 0.810529
+rvecs in deg: 1: 0.666347        2: 180.04       3: -0.400028
+pose estimation: 
+tvecs: 1: -0.267651      2: 0.0179667    3: 0.80935
+rvecs in deg: 1: 0.670905        2: 180.043      3: -0.544559
+pose estimation: 
+tvecs: 1: -0.267468      2: 0.017808     3: 0.808286
+rvecs in deg: 1: 0.664134        2: 179.937      3: -0.54339
+pose estimation: 
+tvecs: 1: -0.267687      2: 0.0176084    3: 0.80926
+rvecs in deg: 1: 0.61909         2: 180.176      3: -0.493986
+pose estimation: 
+tvecs: 1: -0.267907      2: 0.0183561    3: 0.81035
+rvecs in deg: 1: 0.704382        2: 180.118      3: -0.663848
+pose estimation: 
+tvecs: 1: -0.26849       2: 0.0178624    3: 0.812422
+rvecs in deg: 1: 0.643996        2: 180.11       3: -0.659056
+pose estimation: 
+tvecs: 1: -0.268955      2: 0.0178189    3: 0.814139
+rvecs in deg: 1: 0.672847        2: 180.234      3: -0.650243
+pose estimation: 
+tvecs: 1: -0.269729      2: 0.0173104    3: 0.81685
+rvecs in deg: 1: 0.655272        2: 180.183      3: -0.561699
+pose estimation: 
+tvecs: 1: -0.270301      2: 0.0173946    3: 0.819035
+rvecs in deg: 1: 0.647181        2: 180.203      3: -0.627531
+pose estimation: 
+tvecs: 1: -0.26951       2: 0.0175197    3: 0.816189
+rvecs in deg: 1: 0.637245        2: 180.317      3: -0.572704
+pose estimation: 
+tvecs: 1: -0.268952      2: 0.0177946    3: 0.814178
+rvecs in deg: 1: 0.66856         2: 180.206      3: -0.60602
+pose estimation: 
+tvecs: 1: -0.26836       2: 0.0180099    3: 0.812064
+rvecs in deg: 1: 0.663894        2: 180.215      3: -0.711347
+pose estimation: 
+tvecs: 1: -0.267488      2: 0.0184489    3: 0.808662
+rvecs in deg: 1: 0.68057         2: 180.163      3: -0.780473
+pose estimation: 
+tvecs: 1: -0.267356      2: 0.018744     3: 0.807825
+rvecs in deg: 1: 0.689509        2: 179.995      3: -0.646311
+pose estimation: 
+tvecs: 1: -0.2669        2: 0.0192399    3: 0.806073
+rvecs in deg: 1: 0.661057        2: 180.199      3: -0.621248
+pose estimation: 
+tvecs: 1: -0.266965      2: 0.0193003    3: 0.805994
+rvecs in deg: 1: 0.618264        2: 180.042      3: -0.464535
+pose estimation: 
+tvecs: 1: -0.26697       2: 0.0197148    3: 0.805617
+rvecs in deg: 1: 0.646635        2: 179.942      3: -0.531887
+pose estimation: 
+tvecs: 1: -0.268628      2: 0.0188262    3: 0.81297
+rvecs in deg: 1: -0.694588       2: -179.699     3: 0.679294
+pose estimation: 
+tvecs: 1: -0.26862       2: 0.0188455    3: 0.812957
+rvecs in deg: 1: -0.688082       2: -179.718     3: 0.682946
+pose estimation: 
+tvecs: 1: -0.268618      2: 0.0191525    3: 0.812965
+rvecs in deg: 1: 0.706499        2: 180.192      3: -0.731773
+pose estimation: 
+tvecs: 1: -0.268625      2: 0.0193234    3: 0.81298
+rvecs in deg: 1: 0.692872        2: 180.208      3: -0.726847
+pose estimation: 
+tvecs: 1: -0.268691      2: 0.018648     3: 0.813284
+rvecs in deg: 1: 0.710459        2: 180.296      3: -0.626996
+pose estimation: 
+tvecs: 1: -0.268468      2: 0.0189291    3: 0.812549
+rvecs in deg: 1: -0.722303       2: -179.724     3: 0.884249
+pose estimation: 
+tvecs: 1: -0.268726      2: 0.0187794    3: 0.813319
+rvecs in deg: 1: -0.728333       2: -179.83      3: 0.833991
+pose estimation: 
+tvecs: 1: -0.268584      2: 0.0189864    3: 0.812854
+rvecs in deg: 1: 0.685316        2: 180.239      3: -0.776911
+pose estimation: 
+tvecs: 1: -0.268246      2: 0.0198724    3: 0.811743
+rvecs in deg: 1: -0.662534       2: -179.632     3: 0.748089
+pose estimation: 
+tvecs: 1: -0.268291      2: 0.0209427    3: 0.811874
+rvecs in deg: 1: 0.6753  2: 180.309      3: -0.888707
+
+# Camera (horizontal offset +5cm, angle 0°)
+pose estimation: 
+tvecs: 1: -0.159905      2: -0.0932405   3: 0.803578
+rvecs in deg: 1: -181.617        2: -0.262818    3: 4.17978
+pose estimation: 
+tvecs: 1: -0.149415      2: -0.105254    3: 0.798544
+rvecs in deg: 1: -181.775        2: 0.0816786    3: 3.79104
+pose estimation: 
+tvecs: 1: -0.151072      2: -0.11159     3: 0.797508
+rvecs in deg: 1: -181.732        2: 0.199877     3: 3.80062
+pose estimation: 
+tvecs: 1: -0.146547      2: -0.114308    3: 0.796239
+rvecs in deg: 1: -181.757        2: 0.154543     3: 3.66659
+pose estimation: 
+tvecs: 1: -0.153755      2: -0.115106    3: 0.796346
+rvecs in deg: 1: -181.692        2: 0.27381      3: 3.64019
+pose estimation: 
+tvecs: 1: -0.149947      2: -0.112683    3: 0.79378
+rvecs in deg: 1: -182.052        2: 0.605904     3: 4.11884
+pose estimation: 
+tvecs: 1: -0.151853      2: -0.10951     3: 0.79456
+rvecs in deg: 1: -181.809        2: 0.940623     3: 3.72596
+pose estimation: 
+tvecs: 1: -0.157881      2: -0.112616    3: 0.793866
+rvecs in deg: 1: -181.406        2: 1.19383      3: 4.01604
+pose estimation: 
+tvecs: 1: -0.154086      2: -0.103845    3: 0.795084
+rvecs in deg: 1: -181.368        2: 1.18329      3: 3.4859
+pose estimation: 
+tvecs: 1: -0.155347      2: -0.102412    3: 0.794773
+rvecs in deg: 1: -181.904        2: 0.680885     3: 3.8977
+pose estimation: 
+tvecs: 1: -0.154811      2: -0.100986    3: 0.796266
+rvecs in deg: 1: -181.425        2: 0.257685     3: 3.70844
+pose estimation: 
+tvecs: 1: -0.154389      2: -0.0995168   3: 0.7971
+rvecs in deg: 1: -181.798        2: 0.463857     3: 3.61934
+pose estimation: 
+tvecs: 1: -0.152742      2: -0.0992958   3: 0.79609
+rvecs in deg: 1: -181.5  2: 0.561451     3: 4.22507
+pose estimation: 
+tvecs: 1: -0.155864      2: -0.093183    3: 0.800208
+rvecs in deg: 1: -181.559        2: 1.09492      3: 3.13411
+pose estimation: 
+tvecs: 1: -0.155799      2: -0.0932585   3: 0.801251
+rvecs in deg: 1: -181.626        2: 1.08292      3: 3.20551
+pose estimation: 
+tvecs: 1: -0.152985      2: -0.0925189   3: 0.802566
+rvecs in deg: 1: -181.338        2: 0.684645     3: 3.04352
+pose estimation: 
+tvecs: 1: -0.153636      2: -0.0888707   3: 0.804097
+rvecs in deg: 1: -181.592        2: 0.843964     3: 3.545
+pose estimation: 
+tvecs: 1: -0.161691      2: -0.0784501   3: 0.811196
+rvecs in deg: 1: 178.827         2: -1.82021     3: -3.75573
+pose estimation: 
+tvecs: 1: -0.159659      2: -0.0747101   3: 0.81415
+rvecs in deg: 1: 179.194         2: -2.24012     3: -2.68715
+pose estimation: 
+tvecs: 1: -0.160037      2: -0.0765642   3: 0.807778
+rvecs in deg: 1: 178.375         2: -1.84054     3: -3.99547
+
+# Camera (horizontal offset +5cm, angle 0°)
+pose estimation: 
+tvecs: 1: -0.268966      2: -0.144155    3: 0.808388
+rvecs in deg: 1: -176.741        2: -4.75105     3: 1.36503
+pose estimation: 
+tvecs: 1: -0.269439      2: -0.142404    3: 0.801868
+rvecs in deg: 1: -177.061        2: -3.87233     3: -1.38685
+pose estimation: 
+tvecs: 1: -0.272028      2: -0.144663    3: 0.80058
+rvecs in deg: 1: -177.691        2: -4.08593     3: -1.81535
+pose estimation: 
+tvecs: 1: -0.267104      2: -0.144325    3: 0.803569
+rvecs in deg: 1: -176.126        2: -4.68846     3: -0.839053
+pose estimation: 
+tvecs: 1: -0.261374      2: -0.159309    3: 0.806944
+rvecs in deg: 1: -176.477        2: -3.6551      3: -3.18866
+pose estimation: 
+tvecs: 1: -0.26405       2: -0.162488    3: 0.80175
+rvecs in deg: 1: -176.591        2: -4.31486     3: -2.13011
+pose estimation: 
+tvecs: 1: -0.271029      2: -0.159777    3: 0.792442
+rvecs in deg: 1: -176.93         2: -4.89432     3: -1.20143
+pose estimation: 
+tvecs: 1: -0.271203      2: -0.159265    3: 0.792962
+rvecs in deg: 1: -176.126        2: -4.79229     3: -1.05532
+pose estimation: 
+tvecs: 1: -0.272024      2: -0.163328    3: 0.78862
+rvecs in deg: 1: -176.839        2: -4.8332      3: -1.05764
+pose estimation: 
+tvecs: 1: -0.267566      2: -0.1546      3: 0.796358
+rvecs in deg: 1: -176.092        2: -4.44727     3: -0.950089
+pose estimation: 
+tvecs: 1: -0.262085      2: -0.147686    3: 0.794093
+rvecs in deg: 1: -178.648        2: -3.76063     3: 0.0441958
+pose estimation: 
+tvecs: 1: -0.264276      2: -0.135293    3: 0.799026
+rvecs in deg: 1: -181.001        2: -3.42864     3: -0.692147
+pose estimation: 
+tvecs: 1: -0.260765      2: -0.126017    3: 0.801788
+rvecs in deg: 1: -177.995        2: -4.13391     3: -0.962754
+pose estimation: 
+tvecs: 1: -0.256384      2: -0.118307    3: 0.802849
+rvecs in deg: 1: -179.069        2: -3.95715     3: -0.924781
+pose estimation: 
+tvecs: 1: -0.250279      2: -0.117659    3: 0.800039
+rvecs in deg: 1: -179.093        2: -3.99773     3: 0.204459
+pose estimation: 
+tvecs: 1: -0.245583      2: -0.116273    3: 0.799436
+rvecs in deg: 1: -179.416        2: -3.91401     3: 0.869235
+pose estimation: 
+tvecs: 1: -0.246249      2: -0.111522    3: 0.80227
+rvecs in deg: 1: -179.297        2: -3.39289     3: 0.350871

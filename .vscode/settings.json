@@ -88,6 +88,8 @@
         "variant": "cpp",
         "executor": "cpp",
         "netfwd": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "any": "cpp",
+        "regex": "cpp"
     }
 }

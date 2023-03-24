@@ -42,15 +42,16 @@ public:
   using Dock = action_interfaces::action::Dock;
   using GoalHandleDock = rclcpp_action::ServerGoalHandle<Dock>;
   using RotateAngle = irobot_create_msgs::action::RotateAngle;
+  using GoalHandleRotate = rclcpp_action::ClientGoalHandle<RotateAngle>;
   using DriveDistance = irobot_create_msgs::action::DriveDistance;
-  using NavigateToPosition = irobot_create_msgs::action::NavigateToPosition;
+  using GoalHandleDistance = rclcpp_action::ClientGoalHandle<DriveDistance>;
 
   explicit DockActionServer(const rclcpp::NodeOptions & options = rclcpp::NodeOptions()) : Node("dock_turtle_action_server",options) // Class Constructor
   {
     // create the action server
     this->action_server_ = rclcpp_action::create_server<Dock>(
       this,
-      "dock_turtle",
+      "/robot2/dock_turtle",
       std::bind(&DockActionServer::handle_goal, this,_1,_2),
       std::bind(&DockActionServer::handle_cancel, this,_1),
       std::bind(&DockActionServer::handle_accepted, this,_1));
@@ -58,20 +59,15 @@ public:
     // create rotate angle client
     this->rotate_angle_ = rclcpp_action::create_client<RotateAngle>(
       this,
-      "rotate_angle"
+      "/robot2/rotate_angle"
       );
 
     // create drive distance client
     this->drive_distance_ = rclcpp_action::create_client<DriveDistance>(
       this,
-      "drive_distance"
+      "/robot2/drive_distance"
       );
 
-    // create navigating to position client
-    this->navigate_to_pose_ = rclcpp_action::create_client<NavigateToPosition>(
-      this,
-      "navigate_to_position"
-      );
   }
   double angle_error;
   double vertical_error;
@@ -84,6 +80,7 @@ public:
   
   void send_goal(std::string angle_or_dist ,double speed, double rad_or_m )
     {
+    using namespace std::placeholders;
     if (angle_or_dist == "angle")
     {
       if (!this->rotate_angle_->wait_for_action_server()) {
@@ -97,12 +94,12 @@ public:
 
       isNavigating = true;
       // set callbacks
-      auto send_goal_options = rclcpp_action::Client<RotateAngle>::SendGoalOptions();
-      send_goal_options.goal_response_callback = std::bind(&DockActionServer::callback_turn_goal_response, this, std::placeholders::_1);
-      send_goal_options.result_callback = std::bind(&DockActionServer::callback_turn_result, this, std::placeholders::_1);
+      auto send_goal_options_turn = rclcpp_action::Client<RotateAngle>::SendGoalOptions();
+      send_goal_options_turn.goal_response_callback = std::bind(&DockActionServer::callback_turn_goal_response, this,_1);
+      send_goal_options_turn.result_callback = std::bind(&DockActionServer::callback_turn_result, this,_1);
 
       // send goal
-      auto future = rotate_angle_->async_send_goal(goal_msg, send_goal_options);
+      this->rotate_angle_->async_send_goal(goal_msg, send_goal_options_turn);
       
       // wait for future to complete
       size_t counter = 0;
@@ -126,12 +123,12 @@ public:
       goal_msg.distance = rad_or_m;
       isNavigating = true;
       // set callbacks
-      auto send_goal_options = rclcpp_action::Client<DriveDistance>::SendGoalOptions();
-      send_goal_options.goal_response_callback = std::bind(&DockActionServer::callback_drivedist_goal_response, this, std::placeholders::_1);
-      send_goal_options.result_callback = std::bind(&DockActionServer::callback_drivedist_result, this, std::placeholders::_1);
+      auto send_goal_options_dist = rclcpp_action::Client<DriveDistance>::SendGoalOptions();
+      send_goal_options_dist.goal_response_callback = std::bind(&DockActionServer::callback_drivedist_goal_response, this,_1);
+      send_goal_options_dist.result_callback = std::bind(&DockActionServer::callback_drivedist_result, this,_1);
 
       // send goal
-      auto future = drive_distance_->async_send_goal(goal_msg, send_goal_options);
+      this->drive_distance_->async_send_goal(goal_msg, send_goal_options_dist);
       
       // wait for future to complete
       size_t counter = 0;
@@ -324,24 +321,20 @@ public:
     }
   }
 
-  void callback_turn_goal_response(std::shared_future<rclcpp_action::ClientGoalHandle<RotateAngle>::SharedPtr> future)
+  void callback_turn_goal_response(const GoalHandleRotate::SharedPtr & goal_handle)
   {
-      auto goal_handle = future.get();
-      if(!goal_handle)
-      {
-          RCLCPP_INFO(get_logger(), "[nav2] Turn: goal rejected!");
-          isNavigating = false;
-      }
-      else
-      {
-          RCLCPP_INFO(get_logger(), "[nav2] Turn: goal accepted!");
-      }
+    if(!goal_handle)
+    {
+        RCLCPP_INFO(get_logger(), "[nav2] Turn: goal rejected!");
+        isNavigating = false;
+    } else {
+        RCLCPP_INFO(get_logger(), "[nav2] Turn: goal accepted!");
+    }
   }
 
-  void callback_turn_result(const rclcpp_action::ClientGoalHandle<RotateAngle>::WrappedResult &result)
+  void callback_turn_result(const GoalHandleRotate::WrappedResult & result)
   {
-      switch (result.code)
-      {
+      switch (result.code) {
           case rclcpp_action::ResultCode::SUCCEEDED:
               RCLCPP_INFO(get_logger(), "[nav2] Turn Goal succeeded");
               isNavigating = false;
@@ -361,42 +354,42 @@ public:
       }
   }
 
-  void callback_drivedist_goal_response(std::shared_future<rclcpp_action::ClientGoalHandle<DriveDistance>::SharedPtr> future)
+
+
+  void callback_drivedist_goal_response(const GoalHandleDistance::SharedPtr & goal_handle)
   {
-      auto goal_handle = future.get();
       if(!goal_handle)
       {
           RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal rejected!");
           isNavigating = false;
       }
-      else
-      {
+      else {
           RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal accepted!");
       }
   }
 
-  void callback_drivedist_result(const rclcpp_action::ClientGoalHandle<DriveDistance>::WrappedResult &result)
-{
-    switch (result.code)
-    {
-        case rclcpp_action::ResultCode::SUCCEEDED:
-            RCLCPP_INFO(get_logger(), "[nav2] Goal succeeded");
-            isNavigating = false;
-            break;
-        case rclcpp_action::ResultCode::ABORTED:
-            RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was aborted");
-            isNavigating = false;
-            return;
-        case rclcpp_action::ResultCode::CANCELED:
-            RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was canceled");
-            isNavigating = false;
-            return;
-        default:
-            RCLCPP_ERROR(this->get_logger(), "[nav2] Unknown result code");
-            isNavigating = false;
-            return;
-    }
-}
+  void callback_drivedist_result(const GoalHandleDistance::WrappedResult & result)
+  {
+      switch (result.code)
+      {
+          case rclcpp_action::ResultCode::SUCCEEDED:
+              RCLCPP_INFO(get_logger(), "[nav2] Goal succeeded");
+              isNavigating = false;
+              break;
+          case rclcpp_action::ResultCode::ABORTED:
+              RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was aborted");
+              isNavigating = false;
+              return;
+          case rclcpp_action::ResultCode::CANCELED:
+              RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was canceled");
+              isNavigating = false;
+              return;
+          default:
+              RCLCPP_ERROR(this->get_logger(), "[nav2] Unknown result code");
+              isNavigating = false;
+              return;
+      }
+  }
 
 //finding mode of ungrouped data
 float mode(float arr[], int n){
@@ -420,7 +413,6 @@ private:
   rclcpp_action::Server<Dock>::SharedPtr action_server_;
   rclcpp_action::Client<RotateAngle>::SharedPtr rotate_angle_;
   rclcpp_action::Client<DriveDistance>::SharedPtr drive_distance_;
-  rclcpp_action::Client<NavigateToPosition>::SharedPtr navigate_to_pose_;
   cv_bridge::CvImagePtr cv_ptr_;
   bool image_received_ = false;
   double angle_threshold = 0.035; // ^= 2°
@@ -475,8 +467,8 @@ void execute(const std::shared_ptr<GoalHandleDock> goal_handle)
 
             // estimate the pose
             marker = pose_estimation(cv_ptr_); 
-            cv::imshow("image_stream", cv_ptr_->image);
-            cv::waitKey(1);
+            // cv::imshow("image_stream", cv_ptr_->image);
+            // cv::waitKey(1);
             if (marker == 0){
               if (countImage < 10)
               {
@@ -582,7 +574,7 @@ class ImageSubscriber : public rclcpp::Node
     {
       // Subscribe to image topic
       image_subscriber_ = this->create_subscription<Image>(
-        "/color/preview/image",1,std::bind(&ImageSubscriber::image_callback, this, _1));
+        "/robot2/oakd/rgb/preview/image_raw",1,std::bind(&ImageSubscriber::image_callback, this, _1));
     }
 
   private:
@@ -592,7 +584,7 @@ class ImageSubscriber : public rclcpp::Node
         image_global = msg;
         gotImage = true;
       }
-      // std::cout << "now" << std::endl;
+      std::cout << "now" << std::endl;
     }
     rclcpp::Subscription<Image>::SharedPtr image_subscriber_;
 };
