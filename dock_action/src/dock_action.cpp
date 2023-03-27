@@ -308,7 +308,6 @@ public:
       else {
         return -1;
       }
-
       // Draw axis for marker
       cv::aruco::drawAxis(img->image, cameraMatrix, distCoeffs, rvecs.at(0), tvecs.at(0), 0.1);
 
