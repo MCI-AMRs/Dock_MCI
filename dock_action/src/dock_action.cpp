@@ -312,6 +312,7 @@ public:
       cv::aruco::drawAxis(img->image, cameraMatrix, distCoeffs, rvecs.at(0), tvecs.at(0), 0.1);
 
       // new rodrigues to euler
+      
       cv::Mat cam_aruco_rot_mat, inv_tvec, robot_aruco_rot_mat;
       cv::Vec3f rot_vec;
       cv::Mat tvecs_mat = (cv::Mat_<double>(3, 1) << tvecs.at(0)[0], tvecs.at(0)[1], tvecs.at(0)[2]);
