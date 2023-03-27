@@ -356,7 +356,6 @@ public:
       std::cout << "x error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
       std::cout << "x error cam: " << tvecs.at(0)[0] << std::endl;
 
-
       return 0;
     }
     else {
