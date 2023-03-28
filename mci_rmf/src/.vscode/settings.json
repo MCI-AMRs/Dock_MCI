@@ -1,9 +1,0 @@
-{
-    "python.autoComplete.extraPaths": [
-        "/home/h/ros2_ws/install/tt_python/lib/python3.8/site-packages",
-        "/home/h/ros2_ws/install/tt_cpp/lib/python3.8/site-packages",
-        "/home/h/ros2_ws/install/mci_client/lib/python3.8/site-packages",
-        "/home/h/ros2_ws/install/h_interfaces/lib/python3.8/site-packages",
-        "/opt/ros/galactic/lib/python3.8/site-packages"
-    ]
-}
