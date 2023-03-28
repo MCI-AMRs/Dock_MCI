@@ -27,7 +27,7 @@
 #define DEBUG
 #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
-#define OAK_OFFS 0.232 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
+#define OAK_OFFS 0.20 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
 #define MARKER_LENGTH 0.092
 #define MARKER_ID 20
 
@@ -80,65 +80,12 @@ public:
       this,
       drive_name
       );
-
-    // create drive distance client
-    std::string position_name = name + "/navigate_to_position";
-    this->navigate_to_position_ = rclcpp_action::create_client<NavigateToPosition>(
-      this,
-      position_name
-      );
-
   }
+
   double angle_error;
   double z_error;
   double x_error;
   bool isNavigating;
-
-
-  void drive_to_pose(cv::Mat pose, cv::Mat orientation) {
-    using namespace std::placeholders;
-      if (!this->navigate_to_position_->wait_for_action_server()) {
-      RCLCPP_ERROR(this->get_logger(), "Action server not available after waiting");
-      rclcpp::shutdown();
-      }
-
-    auto goal_msg = NavigateToPosition::Goal();
-    goal_msg.achieve_goal_heading = true;
-    goal_msg.max_rotation_speed = 0.1;
-    goal_msg.max_translation_speed = 0.15;
-    std::cout << "pose_x: " << pose.at<double>(0) << "pose_y: " << pose.at<double>(1) << "pose_z: " << pose.at<double>(2) << std::endl;
-    std::cout << "orient_x: " << orientation.at<double>(0) << "orient_y: " << orientation.at<double>(1) << "orient_z: " << orientation.at<double>(2) << std::endl;
-    // position goal
-    goal_msg.goal_pose.pose.position.x = pose.at<double>(0);
-    goal_msg.goal_pose.pose.position.y = pose.at<double>(1);
-    goal_msg.goal_pose.pose.position.z = 0;
-    // orientation goal
-    goal_msg.goal_pose.pose.orientation.x = 0;
-    goal_msg.goal_pose.pose.orientation.y = 0;
-    goal_msg.goal_pose.pose.orientation.z = orientation.at<double>(2);
-    goal_msg.goal_pose.pose.orientation.w = 1;
-
-    isNavigating = true;
-    // set callbacks
-    auto send_goal_options_pos = rclcpp_action::Client<NavigateToPosition>::SendGoalOptions();
-    send_goal_options_pos.goal_response_callback = std::bind(&DockActionServer::callback_position_goal_response, this,_1);
-    send_goal_options_pos.result_callback = std::bind(&DockActionServer::callback_position_result, this,_1);
-
-    // send goal
-    std::cout << "send_goal" << std::endl;
-    this->navigate_to_position_->async_send_goal(goal_msg, send_goal_options_pos);
-
-    // wait for future to complete
-    size_t counter = 0;
-    while(isNavigating) {
-        if((counter % 25) == 0)
-        RCLCPP_INFO(get_logger(), "[nav2] navigating...");
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        counter++;
-    }
-
-
-  }
 
   void send_goal(std::string angle_or_dist ,double speed, double rad_or_m ) {
     using namespace std::placeholders;
@@ -221,22 +168,6 @@ public:
       return cv::Vec3f(x, y, z);
   }
 
-  cv::Mat HomTransMat(cv::Mat& rotMat, cv::Vec3d& transVec) {
-      // create 4,4 identity matrix
-      std::cout << "start hom trans" << std::endl;
-      cv::Mat Hom = cv::Mat::eye(4,4,CV_64F);
-      // copy rotMat to top left
-      cv::Mat topLeft(Hom, cv::Rect(0,0,3,3));
-      rotMat.copyTo(topLeft);
-      // copy transVec to top right
-      std::cout << "vec trans" << std::endl;
-      cv::Mat topRight(Hom, cv::Rect(3, 0, 1, 3));
-      cv::Mat(transVec).copyTo(topRight);
-      std::cout << "end hom trans" << std::endl;
-      // return Homogenous transformation Mat
-      return Hom;
-    }
-
     //finding mode of ungrouped data
   float mode(float arr[], int n){
       // Sort the array 
@@ -312,15 +243,10 @@ public:
       cv::aruco::drawAxis(img->image, cameraMatrix, distCoeffs, rvecs.at(0), tvecs.at(0), 0.1);
 
       // new rodrigues to euler    
-      cv::Mat cam_aruco_rot_mat, inv_tvec, robot_aruco_rot_mat;
+      cv::Mat cam_aruco_rot_mat, inv_tvec;
       cv::Vec3f rot_vec;
       cv::Mat tvecs_mat = (cv::Mat_<double>(3, 1) << tvecs.at(0)[0], tvecs.at(0)[1], tvecs.at(0)[2]);
       cv::Rodrigues(rvecs.at(0), cam_aruco_rot_mat); // convert rotation vector to rotation matrix
-      
-      double pf[] = {0.f,0.f,-1.f,-1.f,0.f,0.f,0.f,1.f,0.f};
-      cv::Mat robot_cam_rot_mat = cv::Mat(3, 3, CV_64F, pf);
-
-      robot_aruco_rot_mat = robot_cam_rot_mat * cam_aruco_rot_mat;      
       
       rot_vec = rotationMatrixToEulerAngles(cam_aruco_rot_mat);
       float rot_y = rot_vec[1];
@@ -329,29 +255,17 @@ public:
       angle_error = rot_y;
       std::cout << "angle error: " << angle_error * 180 / PI << "°" << std::endl;
       // x_error = tvecs.at(0)[0];
-      std::cout << angle_error << std::endl;      
 
       if (abs(angle_error) > 0.08){ // angle error > ~5°
-        std::cout << "angle_error > 5°" << std::endl;
         x_error = inv_tvec.at<double>(0,0);
         z_error = abs(inv_tvec.at<double>(0,2))-OAK_OFFS; //offset of camera
       }
       else {
-        std::cout << "angle_error smaller 5°" << std::endl;
         x_error = tvecs.at(0)[0];
         z_error = abs(tvecs.at(0)[2])-OAK_OFFS; //offset of camera
       }
-      cv::Vec3d trans_vec(-11.8+z_error,0,5.257);
-      
-      std::cout << "start homtrans" << std::endl;
-      cv::Mat camTaruco = HomTransMat(robot_aruco_rot_mat,trans_vec);
-      // define point with Z offset 30 cm extended with 1 to homogenous representation
-      cv::Mat arucoP = (cv::Mat_<double>(4,1) << 0 , 0 , 0.3 , 1);
 
-      // vector from cam coodrdinate system to drive infront aruco
-      camP = camTaruco * arucoP;
       // orientation of the robot towards the aruco
-
       std::cout << "z error: " << z_error << std::endl;
       std::cout << "x error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
       std::cout << "x error cam: " << tvecs.at(0)[0] << std::endl;
@@ -440,37 +354,6 @@ public:
       }
   }
 
-  void callback_position_goal_response(const GoalHandlePosition::SharedPtr & goal_handle) {
-      if(!goal_handle) {
-          RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal rejected!");
-          isNavigating = false;
-      }
-      else {
-          RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal accepted!");
-      }
-  }
-
-  void callback_position_result(const GoalHandlePosition::WrappedResult & result) {
-      switch (result.code) {
-          case rclcpp_action::ResultCode::SUCCEEDED:
-              RCLCPP_INFO(get_logger(), "[nav2] Goal succeeded");
-              isNavigating = false;
-              break;
-          case rclcpp_action::ResultCode::ABORTED:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was aborted");
-              isNavigating = false;
-              return;
-          case rclcpp_action::ResultCode::CANCELED:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was canceled");
-              isNavigating = false;
-              return;
-          default:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Unknown result code");
-              isNavigating = false;
-              return;
-      }
-  }
-
 private:
   rclcpp_action::Server<Dock>::SharedPtr action_server_;
   rclcpp_action::Client<RotateAngle>::SharedPtr rotate_angle_;
@@ -480,7 +363,7 @@ private:
   cv_bridge::CvImagePtr cv_ptr_;
   bool image_received_ = false;
   double angle_threshold = 0.035; // ^= 2°
-  double horizontal_threshold = 0.02; // 5 mm
+  double x_threshold = 0.01; // 1 cm
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////action response functions ///////////////////////////////////////
@@ -509,7 +392,6 @@ private:
       bool goal_reached = false;
       auto result = std::make_shared<Dock::Result>();
       int countImage = 0;
-      bool first = true; // first execution?
       int cam_threshold = 20;
       float angle[20] = {0.0};
       float verti[20] = {0.0};
@@ -535,14 +417,7 @@ private:
 
             // start docking algorithm
               if (marker == 0){
-                if (countImage < cam_threshold) {
-                  if (first && countImage == cam_threshold*0.5) {
-                    #ifdef NOROB
-                    drive_to_pose(camP, orientationP);
-                    #endif
-                    first = false;
-                  }
-                
+                if (countImage < cam_threshold) {               
                   angle[countImage] = angle_error;
                   verti[countImage] = z_error;
                   horiz[countImage] = x_error;
@@ -555,7 +430,7 @@ private:
                 z_error = mode(verti,cam_threshold);
                 x_error = mode(horiz,cam_threshold);
 
-                  if(abs(x_error) > horizontal_threshold) { // reduce horizontal error
+                  if(abs(x_error) > x_threshold) { // reduce horizontal error
                     RCLCPP_INFO_STREAM(this->get_logger(),"Horizontal error correction " << x_error << "...!");
                     #ifdef NOROB
                     // turn to reduce error
