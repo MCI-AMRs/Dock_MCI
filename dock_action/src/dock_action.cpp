@@ -33,7 +33,6 @@
 
 using namespace std::placeholders;
 // irobot_create_msgs::action:DriveDistance;
-
 // define global image variable
 bool gotImage = false;
 sensor_msgs::msg::CompressedImage::SharedPtr image_global;
