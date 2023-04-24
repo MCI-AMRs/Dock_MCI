@@ -28,7 +28,7 @@
 // #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
 #define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
-#define MARKER_LENGTH 0.092
+#define MARKER_LENGTH 0.025
 #define MARKER_ID 20
 
 using ImageComp = sensor_msgs::msg::CompressedImage;
@@ -44,11 +44,9 @@ class CamSubscriber : public rclcpp::Node
         CamSubscriber()
         : Node("cam_subscriber")
         {
+            std::cout << "image subs" << std::endl;
             image_subscriber_ = this->create_subscription<ImageComp>(
             "/oakd/rgb/preview/image_raw/compressed",1,std::bind(&CamSubscriber::image_callback, this, std::placeholders::_1));
-            while(true){
-                run();
-            }
         }
     
     private:
@@ -57,11 +55,14 @@ class CamSubscriber : public rclcpp::Node
         double z_error;
         double x_error;
         
-        void image_callback(const ImageComp::SharedPtr msg) const
+        void image_callback(const ImageComp::SharedPtr msg)
         {
+            std::cout << "callback" << std::endl;
             if(!gotImage){
                 image_global = msg;
                 gotImage = true;
+                std::cout << "image" << std::endl;
+                run();
             }
         }
 
@@ -80,6 +81,8 @@ class CamSubscriber : public rclcpp::Node
 
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
+
+            gotImage = false;
           }
           else { // wait for Imagestream
               std::this_thread::sleep_for(std::chrono::milliseconds(200));
