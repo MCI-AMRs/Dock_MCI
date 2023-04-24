@@ -26,18 +26,18 @@ class ImageSubscriber : public rclcpp::Node
     ImageSubscriber() : Node("image_subscriber"){
       // Subscribe to image topic
       image_subscriber_ = this->create_subscription<ImageComp>(
-      "/oakd/rgb/image_raw/compressed",1,std::bind(&ImageSubscriber::image_callback, this, std::placeholders::_1));
+      "/robot3/oakd/rgb/image_raw/compressed",1,std::bind(&ImageSubscriber::image_callback, this, std::placeholders::_1));
       
       // Subscribe to image topic
       image_info_subscriber_ = this->create_subscription<ImageInfo>(
-        "/oakd/rgb/camera_info",1,std::bind(&ImageSubscriber::info_callback, this, std::placeholders::_1));
+        "/robot3/oakd/rgb/camera_info",1,std::bind(&ImageSubscriber::info_callback, this, std::placeholders::_1));
     }
 
 
   private:
     void image_callback(const ImageComp::SharedPtr msg)
     {
-      auto img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
+      auto img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
       cv::imshow("Compressed", img->image);
       cv::waitKey(1);
     }

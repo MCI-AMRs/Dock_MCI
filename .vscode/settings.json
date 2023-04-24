@@ -97,5 +97,6 @@
         "semaphore": "cpp",
         "stop_token": "cpp",
         "valarray": "cpp"
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

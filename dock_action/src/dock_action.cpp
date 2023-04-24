@@ -25,9 +25,9 @@
 #include "sensor_msgs/msg/image.hpp"
 
 #define DEBUG
-#define NOROB // uncomment to not use the move commands
+// #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
-#define OAK_OFFS 0.20 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
+#define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
 #define MARKER_LENGTH 0.092
 #define MARKER_ID 20
 
@@ -38,6 +38,7 @@ bool gotImage = false;
 sensor_msgs::msg::CompressedImage::SharedPtr image_global;
 cv::Mat camP;
 cv::Mat orientationP;
+std::string name = "";
 
 class DockActionServer : public rclcpp::Node
 {
@@ -53,9 +54,7 @@ public:
 
   explicit DockActionServer(const rclcpp::NodeOptions & options = rclcpp::NodeOptions()) : Node("dock_turtle_action_server",options) // Class Constructor
   {
-    //std::string test = this->get_namespace();
-    std::string name = "/robot3";
-    std::cout << name << std::endl;
+    //std::string test = this->get_name();
     // create the action server
     std::string server_name = name + "/dock_turtle";
     std::cout << server_name << std::endl;
@@ -183,22 +182,34 @@ public:
       }
   }
 
-  int pose_estimation(cv_bridge::CvImagePtr img){  
+  int pose_estimation(cv_bridge::CvImagePtr img){ 
+
     // Cam from Fake Turtlebot
-    // float mtx[9] = {1024.147705078125, 0.0, 647.973876953125,0.0, 1024.147705078125, 363.7773132324219,0.0, 0.0, 1.0};
-    // float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    //float mtx[9] = {1024.147705078125, 0.0, 647.973876953125,0.0, 1024.147705078125, 363.7773132324219,0.0, 0.0, 1.0};
+    //float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-    // Cam from Robot3
-    float mtx[9] = {1028.708740234375, 0.0, 641.5645751953125, 0.0, 1028.708740234375, 362.7433776855469, 0.0, 0.0, 1.0};
-    float dist[14] = {10.559211730957031, -81.07833862304688, -0.00018250872381031513, -0.00033414774225093424, 299.4360656738281, 10.359108924865723, -80.04523468017578, 294.8573913574219, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-
-    // Cam from Robot2
-    // float mtx[9] = {1029.14794921875, 0.0, 647.3345947265625, 0.0, 1029.14794921875, 373.95074462890625, 0.0, 0.0, 1.0};
-    // float dist[14] = {12.819296836853027, -113.50406646728516, -2.672206210263539e-05, 9.265074368158821e-06, 401.9082336425781, 12.615724563598633, -112.17804718017578, 396.441162109375, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    // Cam Fake Turtlebot 500x500
+    float mtx[9] = {400.05767822265625, 0.0, 253.11477661132812, 0.0, 400.05767822265625, 251.4755096435547, 0.0, 0.0, 1.0};
+    float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     // Cam from Robot1
-    // float mtx[9] = {1025.4049072265625, 0.0, 643.5555419921875, 0.0, 1025.4049072265625, 371.5435791015625, 0.0, 0.0, 1.0};
-    // float dist[14] = {18.74028778076172, -179.54446411132812, 0.002264645416289568, 0.0020573034416884184, 681.7216186523438, 18.51045799255371, -177.75823974609375, 673.6657104492188, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    //float mtx[9] = {1025.4049072265625, 0.0, 643.5555419921875, 0.0, 1025.4049072265625, 371.5435791015625, 0.0, 0.0, 1.0};
+    //float dist[14] = {18.74028778076172, -179.54446411132812, 0.002264645416289568, 0.0020573034416884184, 681.7216186523438, 18.51045799255371, -177.75823974609375, 673.6657104492188, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // Cam from Robot2
+    //float mtx[9] = {1029.14794921875, 0.0, 647.3345947265625, 0.0, 1029.14794921875, 373.95074462890625, 0.0, 0.0, 1.0};
+    //float dist[14] = {12.819296836853027, -113.50406646728516, -2.672206210263539e-05, 9.265074368158821e-06, 401.9082336425781, 12.615724563598633, -112.17804718017578, 396.441162109375, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // Cam from Robot3
+    //float mtx[9] = {1028.708740234375, 0.0, 641.5645751953125, 0.0, 1028.708740234375, 362.7433776855469, 0.0, 0.0, 1.0};
+    //float dist[14] = {10.559211730957031, -81.07833862304688, -0.00018250872381031513, -0.00033414774225093424, 299.4360656738281, 10.359108924865723, -80.04523468017578, 294.8573913574219, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // Cam from Robot3 250x250
+    // float mtx[9] = {200.91966247558594, 0.0, 125.30557250976562, 0.0, 200.91966247558594, 125.53581237792969, 0.0, 0.0, 1.0};
+    // float dist[14] = {10.559211730957031, -81.07833862304688, -0.00018250872381031513, -0.00033414774225093424, 299.4360656738281, 10.359108924865723, -80.04523468017578, 294.8573913574219, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    // Cam from Robot3 800x600
+    //float mtx[9] = {642.9429321289062, 0.0, 400.97784423828125, 0.0, 642.9429321289062, 226.714599609375, 0.0, 0.0, 1.0};
+    //float dist[14] = {10.559211730957031, -81.07833862304688, -0.00018250872381031513, -0.00033414774225093424, 299.4360656738281, 10.359108924865723, -80.04523468017578, 294.8573913574219, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     // Set coordinate system
     cv::Mat objPoints(4, 1, CV_32FC3);
@@ -208,7 +219,8 @@ public:
     objPoints.ptr<cv::Vec3f>(0)[3] = cv::Vec3f(-MARKER_LENGTH/2.f, -MARKER_LENGTH/2.f, 0);
 
     cv::Mat cameraMatrix = cv::Mat(3, 3, CV_32F, mtx);
-    cv::Mat distCoeffs = cv::Mat(1, 14, CV_32F, dist);
+    cv::Mat distCoeffs = cv::Mat(1, 5, CV_32F, dist);
+
     //cv::Mat distCoeffs = cv::Mat(1, 5, CV_32F, dist);
     cv::Mat imageCopy;
     img->image.copyTo(img->image);
@@ -401,7 +413,6 @@ private:
         while (!goal_reached){ // as long as goal not reached
           if(gotImage){
             try {
-              cv_bridge::CvImagePtr cv_ptr;
               cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::MONO8);
             }
             catch (cv_bridge::Exception& e) {
@@ -411,6 +422,7 @@ private:
 
               // estimate the pose
               int marker = pose_estimation(cv_ptr_); 
+              std::cout << cv_ptr_->image.size << std::endl;
               cv::imshow("image_stream", cv_ptr_->image);
               cv::waitKey(1);
 
@@ -508,9 +520,8 @@ class ImageSubscriber : public rclcpp::Node
   public:
     ImageSubscriber() : Node("image_subscriber")
     {
-      //std::string name = this->get_namespace();
-      std::string name = "/robot3";
-      std::string image_topic = name + "/oakd/rgb/image_raw/compressed";
+      //std::string name = this->get_name();
+      std::string image_topic = name + "/oakd/rgb/preview/image_raw/compressed";
       // Subscribe to image topic
       image_subscriber_ = this->create_subscription<ImageComp>(
         image_topic,1,std::bind(&ImageSubscriber::image_callback, this, _1));

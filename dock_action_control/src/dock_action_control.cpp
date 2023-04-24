@@ -415,12 +415,7 @@ private:
   void execute(const std::shared_ptr<GoalHandleDock> goal_handle) {
       bool goal_reached = false;
       auto result = std::make_shared<Dock::Result>();
-      int countImage = 0;
-      int cam_threshold = 20;
-      float angle[20] = {0.0};
-      float verti[20] = {0.0};
-      float horiz[20] = {0.0};
-      int count_noTag = 0; // counter how many times the tag is not found
+
 
       if(gotImage){
         try {
@@ -431,6 +426,7 @@ private:
           RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
           return;
         }
+      }
 
         /// DOING A ROUGH ERROR CONTROL ///
         while(pose_estimation(cv_ptr_) != 0){
@@ -439,6 +435,7 @@ private:
               RCLCPP_INFO_STREAM(this->get_logger(),"Horizontal error correction " << x_error << "...!");
               rough_align();
           #endif
+          }
         }
 
         /// DRIVING TOWARDS THE MARKER ///
@@ -454,8 +451,17 @@ private:
               RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
               return;
             }
-          }
+          } 
         }
+
+                // Check if goal is done
+        if (rclcpp::ok()) {
+          RCLCPP_INFO(this->get_logger(), "Goal succeeded");
+          result->finished = 1;
+          goal_handle->succeed(result);
+        }
+      }
+        
 
   
 };  // class DockActionServerTestActionServer
@@ -487,8 +493,7 @@ class ImageSubscriber : public rclcpp::Node
 };
 
 
-int main(int argc, char ** argv)
-{
+int main(int argc, char ** argv) {
   rclcpp::init(argc, argv);
   std::shared_ptr<DockActionServer> action_server = std::make_shared<DockActionServer>();
   std::shared_ptr<ImageSubscriber> image_subscriber = std::make_shared<ImageSubscriber>();
