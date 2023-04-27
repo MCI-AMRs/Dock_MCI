@@ -25,7 +25,7 @@
 #include "sensor_msgs/msg/image.hpp"
 
 #define DEBUG
-// #define NOROB // uncomment to not use the move commands
+#define NOROB // uncomment to not use the move commands
 #define PI 3.1415
 #define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
 #define MARKER_LENGTH 0.092
@@ -185,12 +185,12 @@ public:
   int pose_estimation(cv_bridge::CvImagePtr img){ 
 
     // Cam from Fake Turtlebot
-    //float mtx[9] = {1024.147705078125, 0.0, 647.973876953125,0.0, 1024.147705078125, 363.7773132324219,0.0, 0.0, 1.0};
-    //float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    float mtx[9] = {1024.147705078125, 0.0, 647.973876953125,0.0, 1024.147705078125, 363.7773132324219,0.0, 0.0, 1.0};
+    float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     // Cam Fake Turtlebot 500x500
-    float mtx[9] = {400.05767822265625, 0.0, 253.11477661132812, 0.0, 400.05767822265625, 251.4755096435547, 0.0, 0.0, 1.0};
-    float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    //float mtx[9] = {400.05767822265625, 0.0, 253.11477661132812, 0.0, 400.05767822265625, 251.4755096435547, 0.0, 0.0, 1.0};
+    //float dist[14] = {9.57563591003418, -92.45447540283203, 0.0016312601510435343, 0.0018333167536184192, 308.990478515625, 9.401731491088867, -91.41809844970703, 305.3674621582031, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     // Cam from Robot1
     //float mtx[9] = {1025.4049072265625, 0.0, 643.5555419921875, 0.0, 1025.4049072265625, 371.5435791015625, 0.0, 0.0, 1.0};
@@ -521,7 +521,7 @@ class ImageSubscriber : public rclcpp::Node
     ImageSubscriber() : Node("image_subscriber")
     {
       //std::string name = this->get_name();
-      std::string image_topic = name + "/oakd/rgb/preview/image_raw/compressed";
+      std::string image_topic = name + "/oakd/rgb/image_raw/compressed";
       // Subscribe to image topic
       image_subscriber_ = this->create_subscription<ImageComp>(
         image_topic,1,std::bind(&ImageSubscriber::image_callback, this, _1));
