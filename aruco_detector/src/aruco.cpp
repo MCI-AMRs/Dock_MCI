@@ -28,8 +28,8 @@
 #define DEBUG
 // #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
-#define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
-#define MARKER_LENGTH 0.05
+#define OAK_OFFS 0 // 0.17 exact dist oak_bumper would be 0.232 but turtle should drive underneath
+#define MARKER_LENGTH 0.091
 #define MARKER_ID 20
 
 using ImageComp = sensor_msgs::msg::CompressedImage;
@@ -92,7 +92,7 @@ class CamSubscriber : public rclcpp::Node
         void run(){
           if(gotImage){
             try {
-              cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::RGB8);
+              cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::BGR8);
             }
             catch (cv_bridge::Exception& e) {
               RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
