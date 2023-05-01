@@ -22,9 +22,11 @@ find_package(irobot_create_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(depthai REQUIRED)
+find_package(control_toolbox REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 add_executable(aruco src/aruco_diff.cpp)
-ament_target_dependencies(aruco rclcpp rclcpp_action rclcpp_components action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV)
+ament_target_dependencies(aruco rclcpp rclcpp_action rclcpp_components action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV control_toolbox geometry_msgs)
 
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 target_link_libraries(aruco ${OpenCV_LIBS} )

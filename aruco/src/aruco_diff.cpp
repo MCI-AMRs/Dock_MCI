@@ -24,6 +24,9 @@
 #include "irobot_create_msgs/action/navigate_to_position.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
+#include "geometry_msgs/msg/twist.hpp"
+
+#include <control_toolbox/pid_ros.hpp>
 
 #define DEBUG
 // #define NOROB // uncomment to not use the move commands
@@ -35,6 +38,8 @@
 using ImageComp = sensor_msgs::msg::CompressedImage;
 using Image = sensor_msgs::msg::Image;
 using Info = sensor_msgs::msg::CameraInfo;
+using Twist = geometry_msgs::msg::Twist;
+using PID = control_toolbox::PidROS;
 
 ImageComp::SharedPtr image_global;
 
@@ -64,6 +69,14 @@ class CamSubscriber : public rclcpp::Node
             calibration_subscriber_ = this->create_subscription<Info>(
             "/oakd/rgb/camera_info",1,std::bind(&CamSubscriber::calib_callback, this, std::placeholders::_1),options2);
 
+            cmd_vel_publisher_ = this->create_publisher<Twist>("/cmd_vel",10);
+
+            auto node_ptr = std::shared_ptr<rclcpp::Node>(shared_from_this);
+            PID pid_trans = PID(node_ptr);
+            PID pid_rot = PID(node_ptr);
+
+            pid_trans.initPid(1.0, 0.01, 0.0, 0.31, 0.05, true); // 0.31, 0.05 m/s max vel
+            pid_rot.initPid(1.0, 0.01, 0.0, 1.9, 0.4, true); // 1.9, 0.4 rad/s max vel   
         }
     
     private:
@@ -72,10 +85,12 @@ class CamSubscriber : public rclcpp::Node
         double angle_error;
         double z_error;
         double x_error;
+        rclcpp::Time last_pose_time_;
         
         void image_callback(const ImageComp::SharedPtr msg)
         {
             if(!gotImage){
+                last_pose_time_ = msg->header.stamp;
                 image_global = msg;
                 gotImage = true;
                 run();
@@ -90,6 +105,7 @@ class CamSubscriber : public rclcpp::Node
         }
 
         void run(){
+          Twist cmd_vel;
           if(gotImage){
             try {
               cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::MONO8);
@@ -100,6 +116,22 @@ class CamSubscriber : public rclcpp::Node
             }
 
             pose_estimation(cv_ptr_);
+
+            auto now = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+            std::cout << "high res: " << duration.count() << " ms" << std::endl;
+
+            std::cout << "last_pose_time_: " << last_pose_time_ << std::endl;
+
+            rclcpp::Duration dt = std::chrono::high_resolution_clock::now() - last_pose_time_;
+        
+            cmd_vel.linear.x = pid_trans.computeCommand(x_error, dt);
+            cmd_vel.angular.z = pid_rot.computeCommand(angle_error, dt);
+
+            std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
+            std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
+
+            cmd_vel_publisher_->publish(cmd_vel);
 
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
@@ -164,17 +196,12 @@ class CamSubscriber : public rclcpp::Node
                 cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
                 // Calculate pose for marker
                 int nMarkers = corners.size();
-                std::cout << "nMarkers: " << nMarkers << std::endl;
                 std::vector<cv::Vec3d> rvecs, tvecs;
                     
                if(std::find(ids.begin(),ids.end(),MARKER_ID) != ids.end()) { // check if the expected marker can be seen
                     for(int i = 0; i < nMarkers; i++) {  // check if the robot is infront of the expected marker to dock to the right machine
-                        if(ids.at(i) == MARKER_ID){
-                            std::cout << "posinger" << std::endl;
-                            std::cout << corners.at(i) << std::endl;
+                        if(ids.at(i) == MARKER_ID)
                             cv::aruco::estimatePoseSingleMarkers(corners,MARKER_LENGTH,cameraMatrix,distCoeffs,rvecs,tvecs);
-                            std::cout << "end posinger" << std::endl;
-                        }
                     } 
                 }
                 else {
@@ -190,19 +217,19 @@ class CamSubscriber : public rclcpp::Node
                 cv::Rodrigues(rvecs.at(0), cam_aruco_rot_mat); // convert rotation vector to rotation matrix
                 
                 rot_vec = rotationMatrixToEulerAngles(cam_aruco_rot_mat);
-                angle_error = rot_vec[1]*3;
+                angle_error = rot_vec[1];
                 inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
 
-                std::cout << "angle error: " << (angle_error * 180 / PI) * 3 << "°" << std::endl;
+                std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
                 // x_error = tvecs.at(0)[0];
 
                 if (abs(angle_error) > 0.08){ // angle error > ~5°
                     x_error = inv_tvec.at<double>(0,0);
-                    z_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS)*2; //offset of camera
+                    z_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS); //offset of camera
                 }
                 else {
                     x_error = tvecs.at(0)[0];
-                    z_error = (abs(tvecs.at(0)[2])-OAK_OFFS)*2; //offset of camera
+                    z_error = (abs(tvecs.at(0)[2])-OAK_OFFS); //offset of camera
                 }
 
                 // orientation of the robot towards the aruco
@@ -223,6 +250,8 @@ class CamSubscriber : public rclcpp::Node
         rclcpp::Subscription<Info>::SharedPtr calibration_subscriber_;
         rclcpp::CallbackGroup::SharedPtr callback_group1_;
         rclcpp::CallbackGroup::SharedPtr callback_group2_;
+        rclcpp::Publisher<Twist>::SharedPtr cmd_vel_publisher_;
+        PID pid_rot, pid_trans;
 };
 
 int main(int argc, char * argv[])
