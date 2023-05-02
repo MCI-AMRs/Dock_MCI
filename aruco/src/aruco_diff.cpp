@@ -26,7 +26,7 @@
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 
-#include <control_toolbox/pid_ros.hpp>
+#include <control_toolbox/pid.hpp>
 
 #define DEBUG
 // #define NOROB // uncomment to not use the move commands
@@ -39,12 +39,10 @@ using ImageComp = sensor_msgs::msg::CompressedImage;
 using Image = sensor_msgs::msg::Image;
 using Info = sensor_msgs::msg::CameraInfo;
 using Twist = geometry_msgs::msg::Twist;
-using PID = control_toolbox::PidROS;
 
 ImageComp::SharedPtr image_global;
 
 bool gotImage = false;
-
 
 class CamSubscriber : public rclcpp::Node
 {
@@ -71,12 +69,8 @@ class CamSubscriber : public rclcpp::Node
 
             cmd_vel_publisher_ = this->create_publisher<Twist>("/cmd_vel",10);
 
-            auto node_ptr = std::shared_ptr<rclcpp::Node>(shared_from_this);
-            PID pid_trans = PID(node_ptr);
-            PID pid_rot = PID(node_ptr);
-
-            pid_trans.initPid(1.0, 0.01, 0.0, 0.31, 0.05, true); // 0.31, 0.05 m/s max vel
-            pid_rot.initPid(1.0, 0.01, 0.0, 1.9, 0.4, true); // 1.9, 0.4 rad/s max vel   
+            control_toolbox::Pid pid_trans_;
+            control_toolbox::Pid pid_rot_;
         }
     
     private:
@@ -86,6 +80,7 @@ class CamSubscriber : public rclcpp::Node
         double z_error;
         double x_error;
         rclcpp::Time last_pose_time_;
+        uint64_t last_time_;
         
         void image_callback(const ImageComp::SharedPtr msg)
         {
@@ -93,6 +88,7 @@ class CamSubscriber : public rclcpp::Node
                 last_pose_time_ = msg->header.stamp;
                 image_global = msg;
                 gotImage = true;
+                last_time_ = this->now().nanoseconds();
                 run();
             }
         }
@@ -106,6 +102,9 @@ class CamSubscriber : public rclcpp::Node
 
         void run(){
           Twist cmd_vel;
+          pid_trans_.initPid(1.0, 0.01, 0.0, 0.31, 0.05); // 0.31, 0.05 m/s max vel
+          pid_rot_.initPid(1.0, 0.01, 0.0, 1.9, 0.4); // 1.9, 0.4 rad/s max vel 
+          std::cout << "her" << std::endl;  
           if(gotImage){
             try {
               cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::MONO8);
@@ -115,24 +114,28 @@ class CamSubscriber : public rclcpp::Node
               return;
             }
 
-            pose_estimation(cv_ptr_);
+            int i = pose_estimation(cv_ptr_);
 
-            auto now = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-            std::cout << "high res: " << duration.count() << " ms" << std::endl;
+            if (i == 0 && z_error < 0.1)
+                return;
 
-            std::cout << "last_pose_time_: " << last_pose_time_ << std::endl;
+            if (i == 0){
+                uint64_t time = this->now().nanoseconds();
+            
+                cmd_vel.linear.x = pid_trans_.computeCommand(x_error, time - last_time_);
+                cmd_vel.angular.z = pid_rot_.computeCommand(angle_error, time - last_time_);
 
-            rclcpp::Duration dt = std::chrono::high_resolution_clock::now() - last_pose_time_;
-        
-            cmd_vel.linear.x = pid_trans.computeCommand(x_error, dt);
-            cmd_vel.angular.z = pid_rot.computeCommand(angle_error, dt);
+                last_time_ = time;
 
-            std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
-            std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
+                std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
+                std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
+            }
+            else{
+                cmd_vel.linear.x = 0.0;
+                cmd_vel.angular.z = 0.0;
+            }
 
-            cmd_vel_publisher_->publish(cmd_vel);
-
+            // cmd_vel_publisher_->publish(cmd_vel);
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
 
@@ -251,7 +254,8 @@ class CamSubscriber : public rclcpp::Node
         rclcpp::CallbackGroup::SharedPtr callback_group1_;
         rclcpp::CallbackGroup::SharedPtr callback_group2_;
         rclcpp::Publisher<Twist>::SharedPtr cmd_vel_publisher_;
-        PID pid_rot, pid_trans;
+        control_toolbox::Pid pid_trans_;
+        control_toolbox::Pid pid_rot_;
 };
 
 int main(int argc, char * argv[])
@@ -269,4 +273,3 @@ int main(int argc, char * argv[])
   rclcpp::shutdown();
   return 0;
 }
-
