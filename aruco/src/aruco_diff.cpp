@@ -62,15 +62,15 @@ class CamSubscriber : public rclcpp::Node
 
             std::cout << "image subs" << std::endl;
             image_subscriber_ = this->create_subscription<ImageComp>(
-            "/oakd/rgb/image_raw/compressed",1,std::bind(&CamSubscriber::image_callback, this, std::placeholders::_1), options1);
+            "/robot2/oakd/rgb/image_raw/compressed",1,std::bind(&CamSubscriber::image_callback, this, std::placeholders::_1), options1);
             std::cout << "calib subs" << std::endl;
             calibration_subscriber_ = this->create_subscription<Info>(
-            "/oakd/rgb/camera_info",1,std::bind(&CamSubscriber::calib_callback, this, std::placeholders::_1),options2);
+            "/robot2/oakd/rgb/camera_info",1,std::bind(&CamSubscriber::calib_callback, this, std::placeholders::_1),options2);
 
-            cmd_vel_publisher_ = this->create_publisher<Twist>("/cmd_vel",10);
+            cmd_vel_publisher_ = this->create_publisher<Twist>("/robot2/cmd_vel",10);
 
-            control_toolbox::Pid pid_trans_;
-            control_toolbox::Pid pid_rot_;
+            // control_toolbox::Pid pid_y_error;
+            // control_toolbox::Pid pid_angle;
         }
     
     private:
@@ -78,7 +78,7 @@ class CamSubscriber : public rclcpp::Node
         Info::SharedPtr calibData;
         double angle_error;
         double z_error;
-        double x_error;
+        double y_error;
         rclcpp::Time last_pose_time_;
         uint64_t last_time_;
         
@@ -102,9 +102,9 @@ class CamSubscriber : public rclcpp::Node
 
         void run(){
           Twist cmd_vel;
-          pid_trans_.initPid(1.0, 0.01, 0.0, 0.31, 0.05); // 0.31, 0.05 m/s max vel
-          pid_rot_.initPid(1.0, 0.01, 0.0, 1.9, 0.4); // 1.9, 0.4 rad/s max vel 
-          std::cout << "her" << std::endl;  
+          pid_y_error.initPid(0.1, 0.001, 0.001,0.3, 0.01); // 0.31, 0.05 m/s max vel
+          pid_angle.initPid(0.1, 0.001, 0.001, 0.4, 0,01); // 1.9, 0.4 rad/s max vel 
+        
           if(gotImage){
             try {
               cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::MONO8);
@@ -116,15 +116,30 @@ class CamSubscriber : public rclcpp::Node
 
             int i = pose_estimation(cv_ptr_);
 
-            if (i == 0 && z_error < 0.1)
+            if (i == 0 && z_error < 0.2)
                 return;
 
             if (i == 0){
                 uint64_t time = this->now().nanoseconds();
-            
-                cmd_vel.linear.x = pid_trans_.computeCommand(x_error, time - last_time_);
-                cmd_vel.angular.z = pid_rot_.computeCommand(angle_error, time - last_time_);
 
+                if(abs(y_error) > 0.01){
+                    cmd_vel.angular.z = pid_y_error.computeCommand(y_error, time - last_time_);
+                    if (y_error > 0.0){
+                        cmd_vel.angular.z = cmd_vel.angular.z * -1.0;
+                    }
+                    // guard to prohibit too large angles do not lose marker
+                    if (angle_error > 0.6){
+                        cmd_vel.angular.z = (std::signbit(cmd_vel.angular.z) ? -1 : 1) * 0.1;
+                    }
+                }
+                else{
+                    cmd_vel.angular.z = pid_angle.computeCommand(angle_error, time - last_time_);
+                    if (angle_error > 0){
+                        cmd_vel.angular.z = -cmd_vel.angular.z;
+                    }
+                }
+
+                cmd_vel.linear.x = 0.001;                 
                 last_time_ = time;
 
                 std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
@@ -135,7 +150,7 @@ class CamSubscriber : public rclcpp::Node
                 cmd_vel.angular.z = 0.0;
             }
 
-            // cmd_vel_publisher_->publish(cmd_vel);
+            cmd_vel_publisher_->publish(cmd_vel);
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
 
@@ -184,7 +199,7 @@ class CamSubscriber : public rclcpp::Node
             cv::Mat imageCopy;
             img->image.copyTo(imageCopy);
 
-            cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_7X7_1000);
+            cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_100);
             
             std::vector<int> ids;
             std::vector<std::vector<cv::Point2f>> corners;
@@ -218,28 +233,28 @@ class CamSubscriber : public rclcpp::Node
                 cv::Vec3f rot_vec;
                 cv::Mat tvecs_mat = (cv::Mat_<double>(3, 1) << tvecs.at(0)[0], tvecs.at(0)[1], tvecs.at(0)[2]);
                 cv::Rodrigues(rvecs.at(0), cam_aruco_rot_mat); // convert rotation vector to rotation matrix
-                
+
                 rot_vec = rotationMatrixToEulerAngles(cam_aruco_rot_mat);
                 angle_error = rot_vec[1];
                 inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
 
                 std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
-                // x_error = tvecs.at(0)[0];
+                // y_error = tvecs.at(0)[0];
 
                 if (abs(angle_error) > 0.08){ // angle error > ~5°
-                    x_error = inv_tvec.at<double>(0,0);
+                    y_error = inv_tvec.at<double>(0,0);
                     z_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS); //offset of camera
                 }
                 else {
-                    x_error = tvecs.at(0)[0];
+                    y_error = tvecs.at(0)[0];
                     z_error = (abs(tvecs.at(0)[2])-OAK_OFFS); //offset of camera
                 }
 
                 // orientation of the robot towards the aruco
                 std::cout << "z error: " << z_error << std::endl;
-                std::cout << "x error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
-                std::cout << "x error cam: " << tvecs.at(0)[0]<< std::endl;
-                std::cout << "choosedn x_error: " << x_error << std::endl;
+                std::cout << "y error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
+                std::cout << "y error cam: " << tvecs.at(0)[0]<< std::endl;
+                std::cout << "choosedn y_error: " << y_error << std::endl;
                 
                 img->image = imageCopy;
                 return 0;
@@ -254,8 +269,8 @@ class CamSubscriber : public rclcpp::Node
         rclcpp::CallbackGroup::SharedPtr callback_group1_;
         rclcpp::CallbackGroup::SharedPtr callback_group2_;
         rclcpp::Publisher<Twist>::SharedPtr cmd_vel_publisher_;
-        control_toolbox::Pid pid_trans_;
-        control_toolbox::Pid pid_rot_;
+        control_toolbox::Pid pid_y_error;
+        control_toolbox::Pid pid_angle;
 };
 
 int main(int argc, char * argv[])

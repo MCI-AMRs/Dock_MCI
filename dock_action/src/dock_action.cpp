@@ -132,7 +132,7 @@ public:
 
       // send goal
       this->drive_distance_->async_send_goal(goal_msg, send_goal_options_dist);
-      
+            
       // wait for future to complete
       size_t counter = 0;
       while(isNavigating) {

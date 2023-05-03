@@ -1,0 +1,7 @@
+bool goal
+---
+# Result
+bool finished
+---
+# Feedback
+geometry_msgs/Twist error
