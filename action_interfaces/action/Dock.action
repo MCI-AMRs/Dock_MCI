@@ -1,5 +1,5 @@
 # Request
-bool goal
+int32 id # MachineID
 ---
 # Result
 int32 finished

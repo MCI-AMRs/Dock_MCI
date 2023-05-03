@@ -18,10 +18,10 @@
 #define PI 3.1415
 #define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
 #define MARKER_LENGTH 0.092
-#define MARKER_ID 20
 
 bool gotImage = false;
-
+sensor_msgs::msg::CompressedImage::SharedPtr image_;
+int MarkerID;
 
 class PoseEstimationServer : public rclcpp::Node
 {
@@ -58,12 +58,11 @@ public:
         "/oakd/rgb/image_raw/compressed",1,std::bind(&PoseEstimationServer::image_callback, this, _1),options1);
 
       calibration_subscriber_ = this->create_subscription<Info>(
-         "/robot2/oakd/rgb/camera_info",1,std::bind(&PoseEstimationServer::calib_callback, this, std::placeholders::_1),options2);
+         "/oakd/rgb/camera_info",1,std::bind(&PoseEstimationServer::calib_callback, this, std::placeholders::_1),options2);
   }
 
 private:
   rclcpp_action::Server<PoseError>::SharedPtr action_server_;
-  ImageComp::SharedPtr image_;
   double x_error, y_error, angle_error;
   cv_bridge::CvImagePtr cv_ptr_;
   Info::SharedPtr calibData;
@@ -88,8 +87,9 @@ private:
     const rclcpp_action::GoalUUID & uuid,
     std::shared_ptr<const PoseError::Goal> goal)
   {
-    RCLCPP_INFO(this->get_logger(), "Received goal request with order %d", goal->goal);
+    RCLCPP_INFO(this->get_logger(), "Received goal to get pose of MarkerID %d", goal->id);
     (void)uuid;
+    MarkerID = goal->id;
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
 
@@ -123,9 +123,11 @@ private:
                 RCLCPP_INFO(this->get_logger(), "Goal canceled");
                 return;
             }
+            std::cout << "start execute" << std::endl;
             // Decode image as OpenCV image
             try {
                 cv_ptr_ = cv_bridge::toCvCopy(image_,sensor_msgs::image_encodings::MONO8);
+                std::cout << "converted image" << std::endl;
             }
             catch (cv_bridge::Exception& e) {
                 RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
@@ -133,6 +135,9 @@ private:
             }
             // Do the pose estimation
             int i = pose_estimation(cv_ptr_);
+
+            cv::imshow("test",cv_ptr_->image);
+            cv::waitKey(1);
 
             if(i == 0){
                 feedback->error.angular.z = angle_error;
@@ -207,9 +212,9 @@ private:
         int nMarkers = corners.size();
         std::vector<cv::Vec3d> rvecs, tvecs;
             
-        if(std::find(ids.begin(),ids.end(),MARKER_ID) != ids.end()) { // check if the expected marker can be seen
+        if(std::find(ids.begin(),ids.end(),MarkerID) != ids.end()) { // check if the expected marker can be seen
             for(int i = 0; i < nMarkers; i++) {  // check if the robot is infront of the expected marker to dock to the right machine
-                if(ids.at(i) == MARKER_ID)
+                if(ids.at(i) == MarkerID)
                     cv::aruco::estimatePoseSingleMarkers(corners,MARKER_LENGTH,cameraMatrix,distCoeffs,rvecs,tvecs);
             } 
         }
