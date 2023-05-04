@@ -103,7 +103,7 @@ class CamSubscriber : public rclcpp::Node
             calibration_subscriber_.reset();
         }
 
-        //finding mode of ungrouped data
+        //finding median of ungrouped data
         float median(std::vector<double> vec){
             // Sort the array 
             std::sort(vec.begin(), vec.end());
@@ -154,13 +154,7 @@ class CamSubscriber : public rclcpp::Node
                 x_err_vec.clear();
                 phi_err_vec.clear();
 
-                if (x_err < 0.15){
-                    std::cout << "Docked" << std::endl;
-                    return;
-                }
-                else {
-                    drive(x_err,y_err,phi_err);
-                }
+
             }
           }
           else {

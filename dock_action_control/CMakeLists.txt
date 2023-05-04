@@ -22,12 +22,13 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(depthai REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(control_toolbox REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 add_executable(dock_action_control src/dock_action_control.cpp)
-ament_target_dependencies(dock_action_control geometry_msgs rclcpp rclcpp_action rclcpp_components action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV)
+ament_target_dependencies(dock_action_control geometry_msgs control_toolbox rclcpp rclcpp_action rclcpp_components action_interfaces sensor_msgs irobot_create_msgs cv_bridge depthai OpenCV)
 
 
 include_directories( ${OpenCV_INCLUDE_DIRS} )
