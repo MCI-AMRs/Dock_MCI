@@ -43,6 +43,10 @@ using Twist = geometry_msgs::msg::Twist;
 ImageComp::SharedPtr image_global;
 
 bool gotImage = false;
+int count = 0;
+int count_border = 5;
+std::vector<double> y_err_vec, x_err_vec, phi_err_vec;
+uint64_t last_time_;
 
 class CamSubscriber : public rclcpp::Node
 {
@@ -77,10 +81,9 @@ class CamSubscriber : public rclcpp::Node
         cv_bridge::CvImagePtr cv_ptr_;
         Info::SharedPtr calibData;
         double angle_error;
-        double z_error;
+        double x_error;
         double y_error;
         rclcpp::Time last_pose_time_;
-        uint64_t last_time_;
         
         void image_callback(const ImageComp::SharedPtr msg)
         {
@@ -100,11 +103,22 @@ class CamSubscriber : public rclcpp::Node
             calibration_subscriber_.reset();
         }
 
+        //finding mode of ungrouped data
+        float median(std::vector<double> vec){
+            // Sort the array 
+            std::sort(vec.begin(), vec.end());
+
+            if (vec.size() % 2 == 0) { // even number
+                int n = vec.size()/2;
+                return ((vec.at(n-1)+vec.at(n))*0.5);
+            }
+            else { // odd number
+                int n = std::floor(vec.size()*0.5);
+                return (vec.at(n));
+            }
+        }
+
         void run(){
-          Twist cmd_vel;
-          pid_y_error.initPid(0.1, 0.001, 0.001,0.3, 0.01); // 0.31, 0.05 m/s max vel
-          pid_angle.initPid(0.1, 0.001, 0.001, 0.4, 0,01); // 1.9, 0.4 rad/s max vel 
-        
           if(gotImage){
             try {
               cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::MONO8);
@@ -116,50 +130,106 @@ class CamSubscriber : public rclcpp::Node
 
             int i = pose_estimation(cv_ptr_);
 
-            if (i == 0 && z_error < 0.2)
+            if (i != 0){
+                gotImage = false;
                 return;
-
-            if (i == 0){
-                uint64_t time = this->now().nanoseconds();
-
-                if(abs(y_error) > 0.01){
-                    cmd_vel.angular.z = pid_y_error.computeCommand(y_error, time - last_time_);
-                    if (y_error > 0.0){
-                        cmd_vel.angular.z = cmd_vel.angular.z * -1.0;
-                    }
-                    // guard to prohibit too large angles do not lose marker
-                    if (angle_error > 0.6){
-                        cmd_vel.angular.z = (std::signbit(cmd_vel.angular.z) ? -1 : 1) * 0.1;
-                    }
-                }
-                else{
-                    cmd_vel.angular.z = pid_angle.computeCommand(angle_error, time - last_time_);
-                    if (angle_error > 0){
-                        cmd_vel.angular.z = -cmd_vel.angular.z;
-                    }
-                }
-
-                cmd_vel.linear.x = 0.001;                 
-                last_time_ = time;
-
-                std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
-                std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
             }
-            else{
-                cmd_vel.linear.x = 0.0;
-                cmd_vel.angular.z = 0.0;
-            }
-
-            cmd_vel_publisher_->publish(cmd_vel);
             cv::imshow("image_stream", cv_ptr_->image);
             cv::waitKey(1);
 
-            gotImage = false;
+            if(count < count_border){
+                y_err_vec.push_back(y_error);
+                x_err_vec.push_back(x_error);
+                phi_err_vec.push_back(angle_error);
+                count++;
+                gotImage = false;
+            }
+
+            if(count >= count_border){
+                count = 0;
+                float y_err = median(y_err_vec);
+                float x_err = median(x_err_vec);
+                float phi_err = median(phi_err_vec);
+                y_err_vec.clear();
+                x_err_vec.clear();
+                phi_err_vec.clear();
+
+                if (x_err < 0.15){
+                    std::cout << "Docked" << std::endl;
+                    return;
+                }
+                else {
+                    drive(x_err,y_err,phi_err);
+                }
+            }
           }
-          else { // wait for Imagestream
-              std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
           }
         }
+
+        void drive(float x_err, float y_err, float phi_err){
+            float guard = 0.5;
+            if (y_err < 0.03){
+                guard = 0.2;
+            }
+            std::cout << guard << std::endl;
+
+            std::cout << "median y: " << y_err << std::endl;
+            std::cout << "median x: " << x_err << std::endl;
+            std::cout << "median phi: " << phi_err*180/PI << std::endl;
+
+            Twist cmd_vel;
+            pid_y_error.initPid(0.005, 0.0001, 0.0,0.3, 0.01); // 0.31, 0.05 m/s max vel
+            pid_angle.initPid(0.05, 0.001, 0.001, 0.4, 0,01); // 1.9, 0.4 rad/s max vel 
+
+            uint64_t time = this->now().nanoseconds();
+
+            if(std::round(abs(y_err) * 1000) / 1000 > 0.015){ // round to two decimals
+                cmd_vel.angular.z = pid_y_error.computeCommand(y_err, time - last_time_);
+                std::cout << "reduce y_error" << std::endl;
+
+                if (y_err > 0.0){
+                    cmd_vel.angular.z = cmd_vel.angular.z * -1.0;
+                }
+                // guard to prohibit too large angles do not lose marker
+                if (std::round(abs(phi_err) * 100) / 100  > guard){
+                    cmd_vel.angular.z = (cmd_vel.angular.z < 0) ? 0.01 : -0.01;
+                    std::cout << "guard" << std::endl;
+                }
+
+                cmd_vel.linear.x = 0.001;
+            }
+            else{
+                cmd_vel.angular.z = pid_angle.computeCommand(phi_err, time - last_time_);
+                if (std::round(abs(phi_err) * 100) / 100 > 0.04){
+                    std::cout << phi_err << std::endl;
+                    // if phi_err + cmd_vel -
+                    cmd_vel.angular.z = phi_err < 0 ? -cmd_vel.angular.z : cmd_vel.angular.z;
+
+                    cmd_vel.linear.x = 0.0;
+                    std::cout << "reduce angle error" << std::endl;
+
+                }
+                else{
+                    cmd_vel.angular.z = 0.0;
+                    cmd_vel.linear.x = 0.001;
+                }
+            }
+                            
+            last_time_ = time;
+
+            // guard to set max_velocity
+            if(abs(cmd_vel.angular.z) > 0.04){
+                cmd_vel.angular.z = (std::signbit(cmd_vel.angular.z) ? -1 : 1) * 0.04;
+            }
+
+            std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
+            std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
+
+            cmd_vel_publisher_->publish(cmd_vel);
+        }
+
 
         cv::Vec3f rotationMatrixToEulerAngles(cv::Mat &R){
             // https://learnopencv.com/rotation-matrix-to-euler-angles/
@@ -238,23 +308,23 @@ class CamSubscriber : public rclcpp::Node
                 angle_error = rot_vec[1];
                 inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
 
-                std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
+                //std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
                 // y_error = tvecs.at(0)[0];
 
                 if (abs(angle_error) > 0.08){ // angle error > ~5°
                     y_error = inv_tvec.at<double>(0,0);
-                    z_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS); //offset of camera
+                    x_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS); //offset of camera
                 }
                 else {
                     y_error = tvecs.at(0)[0];
-                    z_error = (abs(tvecs.at(0)[2])-OAK_OFFS); //offset of camera
+                    x_error = (abs(tvecs.at(0)[2])-OAK_OFFS); //offset of camera
                 }
 
                 // orientation of the robot towards the aruco
-                std::cout << "z error: " << z_error << std::endl;
-                std::cout << "y error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
-                std::cout << "y error cam: " << tvecs.at(0)[0]<< std::endl;
-                std::cout << "choosedn y_error: " << y_error << std::endl;
+                //std::cout << "z error: " << x_error << std::endl;
+                //std::cout << "y error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
+                //std::cout << "y error cam: " << tvecs.at(0)[0]<< std::endl;
+                //std::cout << "choosedn y_error: " << y_error << std::endl;
                 
                 img->image = imageCopy;
                 return 0;

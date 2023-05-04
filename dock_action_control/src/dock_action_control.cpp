@@ -373,7 +373,7 @@ private:
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////action response functions ///////////////////////////////////////
   rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID & uuid,std::shared_ptr<const Dock::Goal> goal) {
-    RCLCPP_INFO(this->get_logger(), "Received goal request with order %i",goal->goal);
+    RCLCPP_INFO(this->get_logger(), "Received goal request with order %i",goal->id);
     (void)uuid;
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }

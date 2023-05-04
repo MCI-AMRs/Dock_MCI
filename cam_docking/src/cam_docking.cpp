@@ -55,10 +55,15 @@ public:
 
     this->client_ptr_ = rclcpp_action::create_client<PoseError>(
       this,
-      "cam_pose_error_estimator");
+      "cam_pose_estimator");
 
     cmd_vel_publisher_ = this->create_publisher<Twist>("/robot2/cmd_vel",10);
   }
+
+private:
+  rclcpp_action::Server<Dock>::SharedPtr action_server_;  
+  rclcpp_action::Client<PoseError>::SharedPtr client_ptr_;
+  uint64_t last_time_;
 
   void send_goal()
   {
@@ -81,13 +86,11 @@ public:
     send_goal_options.result_callback =
       std::bind(&CamDockActionServer::result_callback, this, _1);
     this->client_ptr_->async_send_goal(goal_msg, send_goal_options);
+    std::cout << "return" << std::endl;
+    return;
   }
 
-private:
-  rclcpp_action::Server<Dock>::SharedPtr action_server_;  
-  rclcpp_action::Client<PoseError>::SharedPtr client_ptr_;
-  uint64_t last_time_;
-
+  /////////////// CAMDOCK HANDLES /////////////////////////
    rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid,
     std::shared_ptr<const Dock::Goal> goal)
@@ -95,6 +98,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received goal to get pose of MarkerID %d", goal->id);
     (void)uuid;
     MarkerID_ = goal->id;
+    this->send_goal();
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
 
@@ -113,6 +117,7 @@ private:
     std::thread{std::bind(&CamDockActionServer::execute, this, _1), goal_handle}.detach();
   }
 
+  /////////////// POSE_ESTIMATION CLIENT CALLBACKS /////////////////////////
   void goal_response_callback(const GoalHandlePoseError::SharedPtr & goal_handle)
   {
     if (!goal_handle) {
@@ -153,7 +158,7 @@ private:
     Twist cmd_vel;
     pid_y_error.initPid(0.1, 0.001, 0.001,0.3, 0.01); // 0.31, 0.05 m/s max vel
     pid_angle.initPid(0.1, 0.001, 0.001, 0.4, 0,01); // 1.9, 0.4 rad/s max vel 
-
+    
     if (pose_error_.linear.z < 0.2)
         return;
 
@@ -182,9 +187,12 @@ private:
     std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
     std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
 
-    cmd_vel_publisher_->publish(cmd_vel);
+    #ifdef DRIVE
+      cmd_vel_publisher_->publish(cmd_vel);
+    #endif
 
     if(rclcpp::ok()){
+        client_ptr_->async_cancel_all_goals();
         result->finished = true;
         goal_handle->succeed(result);
     }

@@ -72,6 +72,7 @@ private:
     if(!gotImage){
         image_ = msg;
         gotImage = true;
+        std::cout << "image" << std::endl;
     }
   }
 
@@ -110,13 +111,14 @@ private:
 
   void execute(const std::shared_ptr<GoalHandlePoseError> goal_handle)
   {
-    const auto goal = goal_handle->get_goal();
+    std::cout << "execute " << std::endl;
     auto feedback = std::make_shared<PoseError::Feedback>();
     auto result = std::make_shared<PoseError::Result>();
-
+    std::cout << "start while" << std::endl;
     while (true){
         if(gotImage){
             // Check if there is a cancel request
+            std::cout << "got image" << std::endl;
             if (goal_handle->is_canceling()) {
                 result->finished = 0;
                 goal_handle->canceled(result);
@@ -195,7 +197,7 @@ private:
     cv::Mat imageCopy;
     img->image.copyTo(imageCopy);
 
-    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_100);
+    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_7X7_1000);
     
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
