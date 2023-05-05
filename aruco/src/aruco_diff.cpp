@@ -31,8 +31,8 @@
 #define DEBUG
 // #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
-#define OAK_OFFS 0 // 0.17 exact dist oak_bumper would be 0.232 but turtle should drive underneath
-#define MARKER_LENGTH 0.05
+#define OAK_OFFS 0.17 // 0.17 exact dist oak_bumper would be 0.232 but turtle should drive underneath
+#define MARKER_LENGTH 0.06
 #define MARKER_ID 20
 
 using ImageComp = sensor_msgs::msg::CompressedImage;
@@ -44,7 +44,7 @@ ImageComp::SharedPtr image_global;
 
 bool gotImage = false;
 int count = 0;
-int count_border = 5;
+int count_border = 3;
 std::vector<double> y_err_vec, x_err_vec, phi_err_vec;
 uint64_t last_time_;
 
@@ -83,15 +83,14 @@ class CamSubscriber : public rclcpp::Node
         double angle_error;
         double x_error;
         double y_error;
-        rclcpp::Time last_pose_time_;
+        bool first = true;
+        bool first_drive = true;
         
         void image_callback(const ImageComp::SharedPtr msg)
         {
             if(!gotImage){
-                last_pose_time_ = msg->header.stamp;
                 image_global = msg;
                 gotImage = true;
-                last_time_ = this->now().nanoseconds();
                 run();
             }
         }
@@ -154,7 +153,13 @@ class CamSubscriber : public rclcpp::Node
                 x_err_vec.clear();
                 phi_err_vec.clear();
 
+                if(first)
+                    last_time_ = this->now().nanoseconds();
 
+                if(x_err < 0.2)
+                    return;
+
+                drive(x_err,y_err,phi_err);
             }
           }
           else {
@@ -163,9 +168,9 @@ class CamSubscriber : public rclcpp::Node
         }
 
         void drive(float x_err, float y_err, float phi_err){
-            float guard = 0.5;
-            if (y_err < 0.03){
-                guard = 0.2;
+            float guard = 0.3;
+            if (x_err < 0.03){
+                guard = 0.15;
             }
             std::cout << guard << std::endl;
 
@@ -174,7 +179,8 @@ class CamSubscriber : public rclcpp::Node
             std::cout << "median phi: " << phi_err*180/PI << std::endl;
 
             Twist cmd_vel;
-            pid_y_error.initPid(0.005, 0.0001, 0.0,0.3, 0.01); // 0.31, 0.05 m/s max vel
+            Twist cmd_vel2;
+            pid_y_error.initPid(0.03, 0.0001, 0.0,0.3, 0.01); // 0.31, 0.05 m/s max vel
             pid_angle.initPid(0.05, 0.001, 0.001, 0.4, 0,01); // 1.9, 0.4 rad/s max vel 
 
             uint64_t time = this->now().nanoseconds();
@@ -183,12 +189,11 @@ class CamSubscriber : public rclcpp::Node
                 cmd_vel.angular.z = pid_y_error.computeCommand(y_err, time - last_time_);
                 std::cout << "reduce y_error" << std::endl;
 
-                if (y_err > 0.0){
-                    cmd_vel.angular.z = cmd_vel.angular.z * -1.0;
-                }
+                cmd_vel.angular.z = (y_err > 0) ? -cmd_vel.angular.z : cmd_vel.angular.z;
+
                 // guard to prohibit too large angles do not lose marker
                 if (std::round(abs(phi_err) * 100) / 100  > guard){
-                    cmd_vel.angular.z = (cmd_vel.angular.z < 0) ? 0.01 : -0.01;
+                    cmd_vel.angular.z = (cmd_vel.angular.z < 0) ? 0.02 : -0.02;
                     std::cout << "guard" << std::endl;
                 }
 
@@ -199,7 +204,7 @@ class CamSubscriber : public rclcpp::Node
                 if (std::round(abs(phi_err) * 100) / 100 > 0.04){
                     std::cout << phi_err << std::endl;
                     // if phi_err + cmd_vel -
-                    cmd_vel.angular.z = phi_err < 0 ? -cmd_vel.angular.z : cmd_vel.angular.z;
+                    cmd_vel.angular.z = phi_err < 0 ? cmd_vel.angular.z : -cmd_vel.angular.z;
 
                     cmd_vel.linear.x = 0.0;
                     std::cout << "reduce angle error" << std::endl;
@@ -215,13 +220,25 @@ class CamSubscriber : public rclcpp::Node
 
             // guard to set max_velocity
             if(abs(cmd_vel.angular.z) > 0.04){
-                cmd_vel.angular.z = (std::signbit(cmd_vel.angular.z) ? -1 : 1) * 0.04;
+                cmd_vel.angular.z = ((cmd_vel.angular.z < 0) ? -0.04 : 0.04);
             }
 
             std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
             std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
+            
+            if (first_drive){
+                cmd_vel2.angular.z = 0.0;
+                cmd_vel2.linear.x = 0.0;
+                std::cout << "sleep" << std::endl;
+                first_drive = false;
+                for (int i = 0; i < 5; i++){
+                    cmd_vel_publisher_->publish(cmd_vel2);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));  
+                }
+            }
 
             cmd_vel_publisher_->publish(cmd_vel);
+            
         }
 
 
@@ -263,7 +280,7 @@ class CamSubscriber : public rclcpp::Node
             cv::Mat imageCopy;
             img->image.copyTo(imageCopy);
 
-            cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_100);
+            cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_7X7_1000);
             
             std::vector<int> ids;
             std::vector<std::vector<cv::Point2f>> corners;
@@ -328,6 +345,7 @@ class CamSubscriber : public rclcpp::Node
             }
             
         }
+
         rclcpp::Subscription<ImageComp>::SharedPtr image_subscriber_;
         rclcpp::Subscription<Info>::SharedPtr calibration_subscriber_;
         rclcpp::CallbackGroup::SharedPtr callback_group1_;

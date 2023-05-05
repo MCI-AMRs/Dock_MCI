@@ -29,7 +29,7 @@
 // #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
 #define OAK_OFFS 0 // 0.17 exact dist oak_bumper would be 0.232 but turtle should drive underneath
-#define MARKER_LENGTH 0.05
+#define MARKER_LENGTH 0.093
 #define MARKER_ID 20
 
 using ImageComp = sensor_msgs::msg::CompressedImage;

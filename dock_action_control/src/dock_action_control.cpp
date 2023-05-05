@@ -28,18 +28,15 @@
 #include "control_toolbox/pid.hpp"
 
 #define DEBUG
-// #define NOROB // uncomment to not use the move commands
+#define NOROB // uncomment to not use the move commands
 #define PI 3.1415
 #define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
-#define MARKER_LENGTH 0.092
+#define MARKER_LENGTH 0.06
 #define MARKER_ID 20
 
 using namespace std::placeholders;
 
-bool gotImage = false;
-sensor_msgs::msg::CompressedImage::SharedPtr image_global;
-uint64_t last_time_;
-std::string name = "";
+std::string name = "/robot2";
 
 class DockActionServer : public rclcpp::Node
 {
@@ -172,17 +169,6 @@ public:
   }
 
 private:
-  rclcpp_action::Server<Dock>::SharedPtr action_server_;
-  rclcpp_action::Client<RotateAngle>::SharedPtr rotate_angle_;
-  rclcpp_action::Client<DriveDistance>::SharedPtr drive_distance_;
-  rclcpp_action::Client<NavigateToPosition>::SharedPtr navigate_to_position_;
-  rclcpp::Subscription<ImageComp>::SharedPtr image_subscriber_;
-  rclcpp::Subscription<Info>::SharedPtr calibration_subscriber_;
-  rclcpp::Publisher<Twist>::SharedPtr cmd_vel_publisher_;
-  rclcpp::CallbackGroup::SharedPtr callback_group1_;
-  rclcpp::CallbackGroup::SharedPtr callback_group2_;
-  control_toolbox::Pid pid_y_error;
-  control_toolbox::Pid pid_angle;
   double angle_error;
   double x_error;
   double y_error;
@@ -191,6 +177,9 @@ private:
   bool image_received_ = false;
   double angle_threshold = 0.035; // ^= 2°
   double y_threshold = 0.015; // 1 cm
+  bool gotImage = false;
+  ImageComp::SharedPtr image_global;
+  uint64_t last_time_;
 
   void image_callback(const ImageComp::SharedPtr msg)
   {
@@ -433,7 +422,7 @@ private:
   void PIDdock(float x_err, float y_err, float phi_err){
     float guard = 0.5;
     Twist cmd_vel;
-    if (y_err < 0.03){
+    if (x_err < 0.03){
         guard = 0.2;
     }
 
@@ -467,7 +456,7 @@ private:
         if (std::round(abs(phi_err) * 100) / 100 > 0.04){
             std::cout << phi_err << std::endl;
             // if phi_err + cmd_vel -
-            cmd_vel.angular.z = phi_err < 0 ? -cmd_vel.angular.z : cmd_vel.angular.z;
+            cmd_vel.angular.z = phi_err < 0 ? cmd_vel.angular.z : -cmd_vel.angular.z;
 
             cmd_vel.linear.x = 0.0;
             std::cout << "reduce angle error" << std::endl;
@@ -581,6 +570,17 @@ private:
       }
     } 
   }
+  rclcpp_action::Server<Dock>::SharedPtr action_server_;
+  rclcpp_action::Client<RotateAngle>::SharedPtr rotate_angle_;
+  rclcpp_action::Client<DriveDistance>::SharedPtr drive_distance_;
+  rclcpp_action::Client<NavigateToPosition>::SharedPtr navigate_to_position_;
+  rclcpp::Subscription<ImageComp>::SharedPtr image_subscriber_;
+  rclcpp::Subscription<Info>::SharedPtr calibration_subscriber_;
+  rclcpp::Publisher<Twist>::SharedPtr cmd_vel_publisher_;
+  rclcpp::CallbackGroup::SharedPtr callback_group1_;
+  rclcpp::CallbackGroup::SharedPtr callback_group2_;
+  control_toolbox::Pid pid_y_error;
+  control_toolbox::Pid pid_angle;
 };  // class DockActionServerTestActionServer
 
 int main(int argc, char * argv[])
