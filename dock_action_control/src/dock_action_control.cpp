@@ -303,7 +303,7 @@ private:
       cv::Mat imageCopy;
       img->image.copyTo(imageCopy);
 
-      cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_7X7_1000);
+      cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_7X7_100);
       
       std::vector<int> ids;
       std::vector<std::vector<cv::Point2f>> corners;
@@ -342,7 +342,7 @@ private:
           angle_error = rot_vec[1];
           inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
 
-          //std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
+          // std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
 
           if (abs(angle_error) > 0.08){ // angle error > ~5°
               y_error = inv_tvec.at<double>(0,0);
@@ -354,10 +354,10 @@ private:
           }
 
           // orientation of the robot towards the aruco
-          //std::cout << "z error: " << x_error << std::endl;
+          // std::cout << "z error: " << x_error << std::endl;
           //std::cout << "y error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
           //std::cout << "y error cam: " << tvecs.at(0)[0]<< std::endl;
-          //std::cout << "choosedn y_error: " << y_error << std::endl;
+          // std::cout << "choosedn y_error: " << y_error << std::endl;
           
           img->image = imageCopy;
           return 0;
@@ -405,18 +405,38 @@ private:
       // turn to reduce error
       // if horizontal error is positive turn into positive direction 
       int sign = std::signbit(y_err) ? 1 : -1; 
-
+      #ifdef NOROB
       send_goal("angle",0.05,(0.5 * PI - abs(phi_err)) * sign); 
       // reduce horizontal error
       send_goal("dist",0.05,abs(y_err));
       // turn back
       send_goal("angle",0.05,0.5 * PI * (-sign));
+      #endif
     } 
     else if (abs(phi_err) > angle_threshold) {
       RCLCPP_INFO_STREAM(this->get_logger(), "Angle correction " << phi_err*180/PI << "° ...!");                  
-      int sign = std::signbit(phi_err) ? -1 : 1;
-      send_goal("angle",0.05,phi_err * (-sign)); // correct angle in the opposite direction
+      int sign = std::signbit(phi_err) ? 1 : -1;
+      send_goal("angle",0.05,phi_err * sign); // correct angle in the opposite direction
     }
+  }
+
+  void fineDock(float x_error, float y_error, float phi_err){
+    float last_mile = 0.15;
+    float travel_dist = sqrt(((x_error - last_mile)/3)^2 + y_error^2);
+    float alpha = acos(y_error/travel_dist);
+    float gamma = 0.5 * PI - abs(phi_err) - abs(alpha);
+    
+    int direction = std::signbit(y_error) ? 1 : -1;
+
+
+    #ifdef NOROB
+    send_goal("angle",0.05, gamma * direction); 
+    // reduce horizontal error
+    send_goal("dist",0.05, travel_dist);
+    // turn back
+    send_goal("angle",0.05, -(0.5 * PI - alpha) *  direction);
+    #endif
+
   }
   
   void PIDdock(float x_err, float y_err, float phi_err){
@@ -523,7 +543,7 @@ private:
 
             std::cout << "x_err" << x_err << std::endl;
             std::cout << "y_err" << y_err << std::endl;
-            std::cout << "phi_err" << phi_err << std::endl;
+            std::cout << "phi_err" << phi_err * 180 / PI << std::endl;
             // reset vectors
             y_err_vec.clear();
             x_err_vec.clear();
@@ -532,9 +552,7 @@ private:
             // do rough estimation in the first iteration
             if(firstIter){
               std::cout << "rough dock" << std::endl;
-              #ifdef NOROB
               rough_dock(y_err, phi_err);
-              #endif
               firstIter = false;
             }
 
@@ -554,7 +572,8 @@ private:
             }
               std::cout << "PIDdock" << std::endl;
               #ifdef NOROB
-              PIDdock(x_err,y_err,phi_err);
+              // PIDdock(x_err,y_err,phi_err);
+              fineDock(y_err, phi_err);
               #endif
           }
           }

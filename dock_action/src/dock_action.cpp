@@ -28,7 +28,7 @@
 #define NOROB // uncomment to not use the move commands
 #define PI 3.1415
 #define OAK_OFFS 0.17 // exact dist oak_bumper would be 0.232 but turtle should drive underneath
-#define MARKER_LENGTH 0.092
+#define MARKER_LENGTH 0.06
 #define MARKER_ID 20
 
 using namespace std::placeholders;
@@ -224,7 +224,7 @@ public:
     //cv::Mat distCoeffs = cv::Mat(1, 5, CV_32F, dist);
     cv::Mat imageCopy;
     img->image.copyTo(img->image);
-    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_100);
+    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_7X7_1000);
 
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
