@@ -422,7 +422,8 @@ private:
 
   void fineDock(float x_error, float y_error, float phi_err){
     float last_mile = 0.15;
-    float travel_dist = sqrt(((x_error - last_mile)/3)^2 + y_error^2);
+    float travel_dist = sqrt(pow((x_error - last_mile)/3, 2) + pow(y_error, 2));
+
     float alpha = acos(y_error/travel_dist);
     float gamma = 0.5 * PI - abs(phi_err) - abs(alpha);
     
@@ -573,7 +574,7 @@ private:
               std::cout << "PIDdock" << std::endl;
               #ifdef NOROB
               // PIDdock(x_err,y_err,phi_err);
-              fineDock(y_err, phi_err);
+              fineDock(x_err, y_err, phi_err);
               #endif
           }
           }
