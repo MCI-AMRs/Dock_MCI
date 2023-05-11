@@ -109,29 +109,29 @@ public:
   void callback_turn_goal_response(const GoalHandleRotate::SharedPtr & goal_handle) {
     if(!goal_handle)
     {
-        RCLCPP_INFO(get_logger(), "[nav2] Turn: goal rejected!");
+        RCLCPP_INFO(get_logger(), "Turn: goal rejected!");
         isNavigating = false;
     } else {
-        RCLCPP_INFO(get_logger(), "[nav2] Turn: goal accepted!");
+        RCLCPP_INFO(get_logger(), "Turn: goal accepted!");
     }
   }
 
   void callback_turn_result(const GoalHandleRotate::WrappedResult & result) {
       switch (result.code) {
           case rclcpp_action::ResultCode::SUCCEEDED:
-              RCLCPP_INFO(get_logger(), "[nav2] Turn Goal succeeded");
+              RCLCPP_INFO(get_logger(), "Turn Goal succeeded");
               isNavigating = false;
               break;
           case rclcpp_action::ResultCode::ABORTED:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Turn Goal was aborted");
+              RCLCPP_ERROR(this->get_logger(), "Turn Goal was aborted");
               isNavigating = false;
               return;
           case rclcpp_action::ResultCode::CANCELED:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Turn Goal was canceled");
+              RCLCPP_ERROR(this->get_logger(), "Turn Goal was canceled");
               isNavigating = false;
               return;
           default:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Turn Unknown result code");
+              RCLCPP_ERROR(this->get_logger(), "Turn Unknown result code");
               isNavigating = false;
               return;
       }
@@ -139,52 +139,47 @@ public:
 
   void callback_drivedist_goal_response(const GoalHandleDistance::SharedPtr & goal_handle){
       if(!goal_handle) {
-          RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal rejected!");
+          RCLCPP_INFO(get_logger(), "DriveDist: goal rejected!");
           isNavigating = false;
       }
       else {
-          RCLCPP_INFO(get_logger(), "[nav2] DriveDist: goal accepted!");
+          RCLCPP_INFO(get_logger(), "DriveDist: goal accepted!");
       }
   }
 
   void callback_drivedist_result(const GoalHandleDistance::WrappedResult & result) {
       switch (result.code) {
           case rclcpp_action::ResultCode::SUCCEEDED:
-              RCLCPP_INFO(get_logger(), "[nav2] Goal succeeded");
+              RCLCPP_INFO(get_logger(), "Goal succeeded");
               isNavigating = false;
               break;
           case rclcpp_action::ResultCode::ABORTED:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was aborted");
+              RCLCPP_ERROR(this->get_logger(), "Goal was aborted");
               isNavigating = false;
               return;
           case rclcpp_action::ResultCode::CANCELED:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Goal was canceled");
+              RCLCPP_ERROR(this->get_logger(), "Goal was canceled");
               isNavigating = false;
               return;
           default:
-              RCLCPP_ERROR(this->get_logger(), "[nav2] Unknown result code");
+              RCLCPP_ERROR(this->get_logger(), "Unknown result code");
               isNavigating = false;
               return;
       }
   }
 
 private:
-  double angle_error;
-  double x_error;
-  double y_error;
-  cv_bridge::CvImagePtr cv_ptr_;
   Info::SharedPtr calibData;
-  bool image_received_ = false;
   double angle_threshold = 0.035; // ^= 2°
   double y_threshold = 0.015; // 1 cm
   bool gotImage = false;
-  ImageComp::SharedPtr image_global;
+  ImageComp::SharedPtr image_;
   uint64_t last_time_;
 
   void image_callback(const ImageComp::SharedPtr msg)
   {
       if(!gotImage){
-          image_global = msg;
+          image_ = msg;
           gotImage = true;
       }
   }
@@ -208,7 +203,7 @@ private:
       auto goal_msg = RotateAngle::Goal();
       goal_msg.max_rotation_speed = speed;
       goal_msg.angle = rad_or_m;
-
+      // set isNavigating
       isNavigating = true;
       // set callbacks
       auto send_goal_options_turn = rclcpp_action::Client<RotateAngle>::SendGoalOptions();
@@ -217,16 +212,15 @@ private:
 
       // send goal
       this->rotate_angle_->async_send_goal(goal_msg, send_goal_options_turn);
-      
       // wait for future to complete
       size_t counter = 0;
       while(isNavigating){
           if((counter % 25) == 0)
-          RCLCPP_INFO(get_logger(), "[nav2] navigating...");
+          RCLCPP_INFO(get_logger(), "navigating...");
           std::this_thread::sleep_for(std::chrono::milliseconds(100));
           counter++;
       }
-      }
+    }
     else if (angle_or_dist == "dist"){
       if (!this->drive_distance_->wait_for_action_server()) {
         RCLCPP_ERROR(this->get_logger(), "Action server not available after waiting");
@@ -249,7 +243,7 @@ private:
       size_t counter = 0;
       while(isNavigating) {
           if((counter % 25) == 0)
-          RCLCPP_INFO(get_logger(), "[nav2] navigating...");
+          RCLCPP_INFO(get_logger(), "navigating...");
           std::this_thread::sleep_for(std::chrono::milliseconds(100));
           counter++;
       }
@@ -292,8 +286,16 @@ private:
     }
     return cv::Vec3f(x, y, z);
   }
+
+  struct Pose {
+    float x_error;
+    float y_error;
+    float angle_error;
+    bool image;
+  };
   
-  int pose_estimation(cv_bridge::CvImagePtr img){ 
+  Pose pose_estimation(cv_bridge::CvImagePtr img){ 
+      Pose pose;
       double mtx[9] = {calibData->k[0], calibData->k[1],calibData->k[2],calibData->k[3],calibData->k[4],calibData->k[5],calibData->k[6],calibData->k[7],calibData->k[8]};
       double dist[8] = {calibData->d[0], calibData->d[1],calibData->d[2],calibData->d[3],calibData->d[4],calibData->d[5],calibData->d[6],calibData->d[7]};
 
@@ -327,55 +329,253 @@ private:
               } 
           }
           else {
-              return -1;
+              pose.image = false;
+              return pose;
           }
           // Draw axis for marker
           cv::aruco::drawAxis(imageCopy, cameraMatrix, distCoeffs, rvecs.at(0), tvecs.at(0), 0.05);
 
           // new rodrigues to euler    
-          cv::Mat cam_aruco_rot_mat, inv_tvec;
-          cv::Vec3f rot_vec;
+          cv::Mat cam_aruco_rot_mat;
           cv::Mat tvecs_mat = (cv::Mat_<double>(3, 1) << tvecs.at(0)[0], tvecs.at(0)[1], tvecs.at(0)[2]);
           cv::Rodrigues(rvecs.at(0), cam_aruco_rot_mat); // convert rotation vector to rotation matrix
 
-          rot_vec = rotationMatrixToEulerAngles(cam_aruco_rot_mat);
-          angle_error = rot_vec[1];
-          inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
+          cv::Vec3f rot_vec = rotationMatrixToEulerAngles(cam_aruco_rot_mat);
+          pose.angle_error = rot_vec[1];
+          cv::Mat inv_tvec = cam_aruco_rot_mat.t()*tvecs_mat; // transposed and multiplied with the transl. vector - to get horizontal error in the aruco_cam coordinate system robotics_condensed p.19 
 
-          // std::cout << "angle error: " << (angle_error * 180 / PI) << "°" << std::endl;
+          // std::cout << "angle error: " << (pose.angle_error * 180 / PI) << "°" << std::endl;
 
-          if (abs(angle_error) > 0.08){ // angle error > ~5°
-              y_error = inv_tvec.at<double>(0,0);
-              x_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS); //offset of camera
+          if (abs(pose.angle_error) > 0.08){ // angle error > ~5°
+              pose.y_error = inv_tvec.at<double>(0,0);
+              pose.x_error = (abs(inv_tvec.at<double>(0,2))-OAK_OFFS); //offset of camera
           }
           else {
-              y_error = tvecs.at(0)[0];
-              x_error = (abs(tvecs.at(0)[2])-OAK_OFFS); //offset of camera
+              pose.y_error = tvecs.at(0)[0];
+              pose.x_error = (abs(tvecs.at(0)[2])-OAK_OFFS); //offset of camera
           }
 
           // orientation of the robot towards the aruco
-          // std::cout << "z error: " << x_error << std::endl;
+          // std::cout << "x error: " << pose.x_error << std::endl;
           //std::cout << "y error aruco: " << inv_tvec.at<double>(0,0) << std::endl;
           //std::cout << "y error cam: " << tvecs.at(0)[0]<< std::endl;
-          // std::cout << "choosedn y_error: " << y_error << std::endl;
-          
+          // std::cout << "choosedn y_error: " << pose.y_error << std::endl;
+          pose.image = true;
           img->image = imageCopy;
-          return 0;
+          return pose;
       }
       else {
-          return -1;
+          pose.image = false;
+          return pose;
       }
   }
 
-  void search_for_tag(int count){
-    double angle = 0.1745; // ^10°
+  void rough_dock(double y_err, double phi_err){
+    if(abs(y_err) > y_threshold) { // reduce horizontal error
+      RCLCPP_INFO_STREAM(this->get_logger(),"Horizontal error correction " << y_err << "...!");
+      // turn to reduce error
+      // if horizontal error is positive turn into positive direction 
+      int sign = std::signbit(y_err) ? 1 : -1; 
+      #ifdef NOROB
+      send_goal("angle",0.1,(0.5 * PI - abs(phi_err)) * sign); 
+      // reduce horizontal error
+      send_goal("dist",0.1,abs(y_err)*0.9);
+      // turn back
+      send_goal("angle",0.1,0.5 * PI * (-sign));
+      #endif
+    } 
+    else if (abs(phi_err) > angle_threshold) {
+      RCLCPP_INFO_STREAM(this->get_logger(), "Angle correction " << phi_err*180/PI << "° ...!");                  
+      int sign = std::signbit(phi_err) ? 1 : -1;
+      send_goal("angle",0.05,phi_err * sign); // correct angle in the opposite direction
+    }
+  }
 
-    if(count < 4)
-      send_goal("angle",0.1,angle);
-    else if (count == 4)
-      send_goal("angle",0.1, -angle*4); // turn in opposite direction +1
-    else
-      send_goal("angle",0.1,-angle);
+  void fineDock(float travel_dist, float y_error, float phi_err){
+    float alpha = acos(y_error/travel_dist);
+    float gamma = 0.5 * PI - abs(phi_err) - abs(alpha);
+    
+    int direction = std::signbit(y_error) ? 1 : -1;
+    #ifdef NOROB
+      send_goal("angle",0.05, gamma * direction);
+      std::cout << "angle: " << gamma * direction * 180 / PI << std::endl; 
+      // reduce horizontal error
+      send_goal("dist",0.05, travel_dist);
+      std::cout << "travel: " << travel_dist << std::endl;
+      // turn back
+      send_goal("angle",0.05, -(0.5 * PI - alpha) *  direction);
+      std::cout << "angle turn back: " << -(0.5 * PI - alpha) *  direction * 180 / PI << std::endl;
+    #endif
+
+  }
+  
+  void PIDdock(float x_err, float y_err, float phi_err){
+    float guard = 0.5;
+    Twist cmd_vel;
+    if (x_err < 0.20){
+        guard = 0.2;
+    }
+
+    std::cout << "median y: " << y_err << std::endl;
+    std::cout << "median x: " << x_err << std::endl;
+    std::cout << "median phi: " << phi_err*180/PI << std::endl;
+
+    // Init PID's
+    pid_y_error.initPid(0.01, 0.0, 0.0, 0.0, 0.0); // 0.31, 0.05 m/s max vel
+    pid_angle.initPid(0.1, 0.0, 0.0, 0.0, 0.0); // 1.9, 0.4 rad/s max vel 
+
+    uint64_t time = this->now().nanoseconds();
+
+    if(std::round(abs(y_err) * 1000) / 1000 > y_threshold){ // round to two decimals
+        cmd_vel.angular.z = pid_y_error.computeCommand(y_err, time - last_time_);
+        std::cout << "reduce y_error" << std::endl;
+
+        if (y_err > 0.0){
+            cmd_vel.angular.z = cmd_vel.angular.z * -1.0;
+        }
+        // guard to prohibit too large angles do not lose marker
+        if (std::round(abs(phi_err) * 100) / 100  > guard){
+            cmd_vel.angular.z = (cmd_vel.angular.z < 0) ? 0.01 : -0.01;
+            std::cout << "guard" << std::endl;
+        }
+
+        cmd_vel.linear.x = 0.01;
+    }
+    else{
+        cmd_vel.angular.z = pid_angle.computeCommand(phi_err, time - last_time_);
+        if (std::round(abs(phi_err) * 100) / 100 > 0.04){
+            std::cout << phi_err << std::endl;
+            // if phi_err + cmd_vel -
+            cmd_vel.angular.z = phi_err < 0 ? cmd_vel.angular.z : -cmd_vel.angular.z;
+
+            cmd_vel.linear.x = 0.0;
+            std::cout << "reduce angle error" << std::endl;
+
+        }
+        else{
+            std::cout << "straight docking phase!" << std::endl;
+            cmd_vel.angular.z = 0.0;
+            cmd_vel.linear.x = 0.001;
+        }
+    }
+                    
+    last_time_ = time;
+
+    // guard to set max_velocity
+    if(abs(cmd_vel.angular.z) > 0.04){
+        cmd_vel.angular.z = (std::signbit(cmd_vel.angular.z) ? -1 : 1) * 0.04;
+    }
+
+    std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
+    std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
+
+    cmd_vel_publisher_->publish(cmd_vel);
+  }
+
+  void execute(const std::shared_ptr<GoalHandleDock> goal_handle) {
+    cv_bridge::CvImagePtr cv_ptr;
+    bool goal_reached = false;
+    auto result = std::make_shared<Dock::Result>();
+    int countImage = 0;
+    int ThresholdImage = 5;
+    bool firstIter = true;
+    bool firstPIDdock = true;
+    std::vector<double> y_err_vec, x_err_vec, phi_err_vec;
+    Twist cmd_vel;
+
+
+    while (!goal_reached){ // as long as goal not reached
+      if(gotImage){
+        try {
+          cv_ptr = cv_bridge::toCvCopy(image_,sensor_msgs::image_encodings::MONO8);
+        }
+        catch (cv_bridge::Exception& e) {
+          RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
+          return;
+        }
+        // estimate the pose
+        Pose pose = pose_estimation(cv_ptr); 
+
+        cv::imshow("image_stream", cv_ptr->image);
+        cv::waitKey(1);
+
+        // start docking algorithm
+        if(pose.image){
+          if (firstIter){
+            if (countImage < ThresholdImage) {               
+              y_err_vec.push_back(pose.y_error);
+              x_err_vec.push_back(pose.x_error);
+              phi_err_vec.push_back(pose.angle_error);
+              countImage++;
+            }
+            else {
+              countImage = 0; // reset counter
+              float x_err = median(x_err_vec);
+              float y_err = median(y_err_vec);
+              float phi_err = median(phi_err_vec);
+
+              std::cout << "x_err" << x_err << std::endl;
+              std::cout << "y_err" << y_err << std::endl;
+              std::cout << "phi_err" << phi_err * 180 / PI << std::endl;
+
+              // reset vectors
+              y_err_vec.clear();
+              x_err_vec.clear();
+              phi_err_vec.clear();
+
+              // do rough estimation in the first iteration
+              std::cout << "rough dock" << std::endl;
+              rough_dock(y_err, phi_err);
+              firstIter = false;
+              // sleep to get cam some time
+              std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+              }
+          }
+
+          if (pose.image && !firstIter){
+            if (pose.x_error < 0.15){
+                // Check if goal is done
+                goal_reached = true;
+                if (rclcpp::ok()) {
+                  RCLCPP_INFO(this->get_logger(), "Goal succeeded! Turtle docked.");
+                  result->finished = 1;
+                  goal_handle->succeed(result);
+                }
+            }
+            else if (pose.x_error >= 0.15){
+              if(firstPIDdock){ 
+                firstPIDdock = false;
+                cmd_vel.linear.x = 0.0;
+                cmd_vel.angular.z = 0.0;
+                // wait for the cmd_vel topic to be ready
+                float time = 0;
+                while(time < 10){ 
+                  cmd_vel_publisher_->publish(cmd_vel);
+                  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                  time += 0.2;
+                }
+                last_time_ = this->now().nanoseconds();
+              }
+
+              std::cout << "PIDdock" << std::endl;
+              #ifdef NOROB
+              PIDdock(pose.x_error,pose.y_error,pose.angle_error);
+              // fineDock(x_err, y_err, phi_err);
+              #endif
+            }
+          }
+        }
+        else {
+            gotImage = false; // wait for new image 
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));        
+        }
+          gotImage = false; // wait for new image
+      } 
+      else {
+        gotImage = false; // wait for new image     
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));    
+       }
+    }
   }
 
 
@@ -399,197 +599,6 @@ private:
     std::thread{std::bind(&DockActionServer::execute, this, _1), goal_handle}.detach();
   }
 
-  void rough_dock(double y_err, double phi_err){
-    if(abs(y_err) > y_threshold) { // reduce horizontal error
-      RCLCPP_INFO_STREAM(this->get_logger(),"Horizontal error correction " << y_err << "...!");
-      // turn to reduce error
-      // if horizontal error is positive turn into positive direction 
-      int sign = std::signbit(y_err) ? 1 : -1; 
-      #ifdef NOROB
-      send_goal("angle",0.05,(0.5 * PI - abs(phi_err)) * sign); 
-      // reduce horizontal error
-      send_goal("dist",0.05,abs(y_err));
-      // turn back
-      send_goal("angle",0.05,0.5 * PI * (-sign));
-      #endif
-    } 
-    else if (abs(phi_err) > angle_threshold) {
-      RCLCPP_INFO_STREAM(this->get_logger(), "Angle correction " << phi_err*180/PI << "° ...!");                  
-      int sign = std::signbit(phi_err) ? 1 : -1;
-      send_goal("angle",0.05,phi_err * sign); // correct angle in the opposite direction
-    }
-  }
-
-  void fineDock(float x_error, float y_error, float phi_err){
-    float last_mile = 0.15;
-    float travel_dist = sqrt(pow((x_error - last_mile)/3, 2) + pow(y_error, 2));
-
-    float alpha = acos(y_error/travel_dist);
-    float gamma = 0.5 * PI - abs(phi_err) - abs(alpha);
-    
-    int direction = std::signbit(y_error) ? 1 : -1;
-
-
-    #ifdef NOROB
-    send_goal("angle",0.05, gamma * direction); 
-    // reduce horizontal error
-    send_goal("dist",0.05, travel_dist);
-    // turn back
-    send_goal("angle",0.05, -(0.5 * PI - alpha) *  direction);
-    #endif
-
-  }
-  
-  void PIDdock(float x_err, float y_err, float phi_err){
-    float guard = 0.5;
-    Twist cmd_vel;
-    if (x_err < 0.03){
-        guard = 0.2;
-    }
-
-    std::cout << "median y: " << y_err << std::endl;
-    std::cout << "median x: " << x_err << std::endl;
-    std::cout << "median phi: " << phi_err*180/PI << std::endl;
-
-    // Init PID's
-    pid_y_error.initPid(0.005, 0.0001, 0.0,0.3, 0.01); // 0.31, 0.05 m/s max vel
-    pid_angle.initPid(0.05, 0.001, 0.001, 0.4, 0,01); // 1.9, 0.4 rad/s max vel 
-
-    uint64_t time = this->now().nanoseconds();
-
-    if(std::round(abs(y_err) * 1000) / 1000 > y_threshold){ // round to two decimals
-        cmd_vel.angular.z = pid_y_error.computeCommand(y_err, time - last_time_);
-        std::cout << "reduce y_error" << std::endl;
-
-        if (y_err > 0.0){
-            cmd_vel.angular.z = cmd_vel.angular.z * -1.0;
-        }
-        // guard to prohibit too large angles do not lose marker
-        if (std::round(abs(phi_err) * 100) / 100  > guard){
-            cmd_vel.angular.z = (cmd_vel.angular.z < 0) ? 0.01 : -0.01;
-            std::cout << "guard" << std::endl;
-        }
-
-        cmd_vel.linear.x = 0.001;
-    }
-    else{
-        cmd_vel.angular.z = pid_angle.computeCommand(phi_err, time - last_time_);
-        if (std::round(abs(phi_err) * 100) / 100 > 0.04){
-            std::cout << phi_err << std::endl;
-            // if phi_err + cmd_vel -
-            cmd_vel.angular.z = phi_err < 0 ? cmd_vel.angular.z : -cmd_vel.angular.z;
-
-            cmd_vel.linear.x = 0.0;
-            std::cout << "reduce angle error" << std::endl;
-
-        }
-        else{
-            cmd_vel.angular.z = 0.0;
-            cmd_vel.linear.x = 0.001;
-        }
-    }
-                    
-    last_time_ = time;
-
-    // guard to set max_velocity
-    if(abs(cmd_vel.angular.z) > 0.04){
-        cmd_vel.angular.z = (std::signbit(cmd_vel.angular.z) ? -1 : 1) * 0.04;
-    }
-
-    std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
-    std::cout << "cmd_vel.angular.z: " << cmd_vel.angular.z << std::endl;
-
-    cmd_vel_publisher_->publish(cmd_vel);
-  }
-
-
-  void execute(const std::shared_ptr<GoalHandleDock> goal_handle) {
-    bool goal_reached = false;
-    auto result = std::make_shared<Dock::Result>();
-    int countImage = 0;
-    int ThresholdImage = 5;
-    bool firstIter = true;
-    bool firstPIDdock = true;
-    std::vector<double> y_err_vec, x_err_vec, phi_err_vec;
-
-
-    while (!goal_reached){ // as long as goal not reacheds
-      if(gotImage){
-        try {
-          cv_ptr_ = cv_bridge::toCvCopy(image_global,sensor_msgs::image_encodings::MONO8);
-        }
-        catch (cv_bridge::Exception& e) {
-          RCLCPP_INFO(this->get_logger(),"cv_bridge exception: %s", e.what());
-          return;
-        }
-        // estimate the pose
-        int marker = pose_estimation(cv_ptr_); 
-
-        cv::imshow("image_stream", cv_ptr_->image);
-        cv::waitKey(1);
-
-        // start docking algorithm
-        if (marker == 0){
-          if (countImage < ThresholdImage) {               
-            y_err_vec.push_back(y_error);
-            x_err_vec.push_back(x_error);
-            phi_err_vec.push_back(angle_error);
-            countImage++;
-          }
-          else {
-            countImage = 0; // reset counter
-            float x_err = median(x_err_vec);
-            float y_err = median(y_err_vec);
-            float phi_err = median(phi_err_vec);
-
-            std::cout << "x_err" << x_err << std::endl;
-            std::cout << "y_err" << y_err << std::endl;
-            std::cout << "phi_err" << phi_err * 180 / PI << std::endl;
-            // reset vectors
-            y_err_vec.clear();
-            x_err_vec.clear();
-            phi_err_vec.clear();
-
-            // do rough estimation in the first iteration
-            if(firstIter){
-              std::cout << "rough dock" << std::endl;
-              rough_dock(y_err, phi_err);
-              firstIter = false;
-            }
-
-          if (x_err < 0.15){
-              // Check if goal is done
-              goal_reached = true;
-              if (rclcpp::ok()) {
-                RCLCPP_INFO(this->get_logger(), "Goal succeeded! Turtle docked.");
-                result->finished = 1;
-                goal_handle->succeed(result);
-              }
-          }
-          else {
-            if(firstPIDdock){
-              last_time_ = this->now().nanoseconds();
-              firstPIDdock = false;
-            }
-              std::cout << "PIDdock" << std::endl;
-              #ifdef NOROB
-              // PIDdock(x_err,y_err,phi_err);
-              fineDock(x_err, y_err, phi_err);
-              #endif
-          }
-          }
-          gotImage = false; // wait for new image
-        } // if marker 
-        else {
-          std::this_thread::sleep_for(std::chrono::milliseconds(200));   
-          gotImage = false; // wait for new image      
-        }
-      } // if gotImage
-      else { // wait for Imagestream
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-      }
-    } 
-  }
   rclcpp_action::Server<Dock>::SharedPtr action_server_;
   rclcpp_action::Client<RotateAngle>::SharedPtr rotate_angle_;
   rclcpp_action::Client<DriveDistance>::SharedPtr drive_distance_;
